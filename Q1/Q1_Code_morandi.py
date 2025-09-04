@@ -414,12 +414,10 @@ class RealTimeProjection:
         # 动态增强标题
         title_base_color = self.colors['morandi_dusty_rose'] if occluded else self.colors['morandi_sage']
         title_glow_color = self.colors['accent_gold'] if occluded else self.colors['morandi_olive']
-        occlusion_status = "🚨 完全遮蔽" if occluded else "✅ 视野清晰"
+        occlusion_status = "完全遮蔽" if occluded else "视野清晰"
         title_size = 17 + (2 if occluded and self.show_effects else 0)
         
-        ax.set_title(f'🎯 烟幕干扰三维仿真场景 - {occlusion_status} (t={t:.1f}s)', 
-                    fontsize=title_size, family='Microsoft YaHei', color=title_base_color, 
-                    weight='bold', pad=25)
+        # 移除3D场景的标题，避免与主标题重复
         
         # 美化3D叠加信息面板
         if self.show_overlay:
@@ -430,15 +428,15 @@ class RealTimeProjection:
                 alpha_deg = float(np.degrees(alpha))
                 apex_deg = 2.0 * alpha_deg
                 overlay = (
-                    f"⏱️ 时间: {t:.2f}s  📏 距离: {d:.1f}m\n"
-                    f"📐 半角: {alpha_deg:.2f}°  🔺 顶角: {apex_deg:.2f}°\n"
-                    f"{'🚫 遮蔽状态: 完全' if occluded else '👁️ 遮蔽状态: 无'}"
+                    f"时间: {t:.2f}s  距离: {d:.1f}m\n"
+                    f"半角: {alpha_deg:.2f}°  顶角: {apex_deg:.2f}°\n"
+                    f"{'遮蔽状态: 完全' if occluded else '遮蔽状态: 无'}"
                 )
             else:
                 overlay = (
-                    f"⏱️ 时间: {t:.2f}s\n"
-                    f"⚠️ M1位于目标球体内部\n"
-                    f"{'🚫 遮蔽状态: 完全' if occluded else '👁️ 遮蔽状态: 无'}"
+                    f"时间: {t:.2f}s\n"
+                    f"M1位于目标球体内部\n"
+                    f"{'遮蔽状态: 完全' if occluded else '遮蔽状态: 无'}"
                 )
             try:
                 text_color = self.colors['morandi_dusty_rose'] if occluded else self.colors['morandi_sage']
@@ -491,8 +489,8 @@ class RealTimeProjection:
         """构建美化的界面布局，优化视觉效果和用户体验"""
         # 扩大窗口尺寸提供更佳的视觉体验
         self.fig = plt.figure(figsize=(22, 18))
-        self.fig.suptitle('🎯 烟幕干扰三维仿真系统', fontsize=20, family='Microsoft YaHei', 
-                         color=self.colors['text_light'], weight='bold', y=0.97)
+        self.fig.suptitle('烟幕干扰三维仿真系统', fontsize=18, family='Microsoft YaHei', 
+                         color=self.colors['text_light'], weight='bold', y=0.94)
         
         # 优化网格布局，提供更好的空间分配
         gs = self.fig.add_gridspec(3, 3, 
@@ -538,7 +536,7 @@ class RealTimeProjection:
                          linewidth=4, alpha=0.9, label='视线半角')
         self.ax_area.fill_between(ts, 0, angles_deg, color=self.colors['morandi_dusty_rose'], 
                                  alpha=0.2, label='半角区域')
-        self.ax_area.set_title('📐 视线半角变化分析', fontsize=14, family='Microsoft YaHei', 
+        self.ax_area.set_title('视线半角变化分析', fontsize=14, family='Microsoft YaHei', 
                               color=self.colors['text_light'], weight='bold', pad=15)
         self.ax_area.set_xlabel('时间 (s)', fontsize=11, color=self.colors['text_light'], weight='bold')
         self.ax_area.set_ylabel('半角 (°)', fontsize=11, color=self.colors['text_light'], weight='bold')
@@ -555,7 +553,7 @@ class RealTimeProjection:
                                  alpha=0.2, label='距离变化')
         self.ax_dist.axhline(y=self.RO_radius, color=self.colors['accent_crimson'], 
                             linestyle='--', linewidth=2, alpha=0.8, label='RO半径')
-        self.ax_dist.set_title('📏 M1到RO距离分析', fontsize=14, family='Microsoft YaHei', 
+        self.ax_dist.set_title('M1到RO距离分析', fontsize=14, family='Microsoft YaHei', 
                               color=self.colors['text_light'], weight='bold', pad=15)
         self.ax_dist.set_xlabel('时间 (s)', fontsize=11, color=self.colors['text_light'], weight='bold')
         self.ax_dist.set_ylabel('距离 (m)', fontsize=11, color=self.colors['text_light'], weight='bold')
@@ -612,40 +610,40 @@ class RealTimeProjection:
             # 🎮 播放按钮 - 使用渐变效果
             ax_btn_play = plt.axes((0.10, btn_y, btn_width, btn_height), 
                                   facecolor=self.colors['morandi_sage'])
-            self.btn_play = Button(ax_btn_play, '▶️ 播放', color=self.colors['morandi_sage'], 
+            self.btn_play = Button(ax_btn_play, '播放', color=self.colors['morandi_sage'], 
                                   hovercolor=self.colors['morandi_olive'])
             ax_btn_play.spines['bottom'].set_color(self.colors['morandi_olive'])
             ax_btn_play.spines['top'].set_color(self.colors['morandi_olive'])
             ax_btn_play.spines['right'].set_color(self.colors['morandi_olive'])
             ax_btn_play.spines['left'].set_color(self.colors['morandi_olive'])
             
-            # ⏸️ 暂停按钮
+            # 暂停按钮
             ax_btn_pause = plt.axes((0.10 + btn_spacing, btn_y, btn_width, btn_height), 
                                    facecolor=self.colors['morandi_mauve'])
-            self.btn_pause = Button(ax_btn_pause, '⏸️ 暂停', color=self.colors['morandi_mauve'], 
+            self.btn_pause = Button(ax_btn_pause, '暂停', color=self.colors['morandi_mauve'], 
                                    hovercolor=self.colors['morandi_dusty_rose'])
             ax_btn_pause.spines['bottom'].set_color(self.colors['morandi_dusty_rose'])
             ax_btn_pause.spines['top'].set_color(self.colors['morandi_dusty_rose'])
             ax_btn_pause.spines['right'].set_color(self.colors['morandi_dusty_rose'])
             ax_btn_pause.spines['left'].set_color(self.colors['morandi_dusty_rose'])
             
-            # 🔄 重置按钮
+            # 重置按钮
             ax_btn_reset = plt.axes((0.10 + 2*btn_spacing, btn_y, btn_width, btn_height), 
                                    facecolor=self.colors['morandi_beige'])
-            self.btn_reset = Button(ax_btn_reset, '🔄 重置', color=self.colors['morandi_beige'], 
+            self.btn_reset = Button(ax_btn_reset, '重置', color=self.colors['morandi_beige'], 
                                    hovercolor=self.colors['morandi_terracotta'])
             ax_btn_reset.spines['bottom'].set_color(self.colors['morandi_terracotta'])
             ax_btn_reset.spines['top'].set_color(self.colors['morandi_terracotta'])
             ax_btn_reset.spines['right'].set_color(self.colors['morandi_terracotta'])
             ax_btn_reset.spines['left'].set_color(self.colors['morandi_terracotta'])
 
-            # 🎚️ 时间进度滑块 - 美化设计
+            # 时间进度滑块 - 美化设计
             slider_y = btn_y + 0.01
             slider_width = 0.40   # 扩大滑块宽度
             slider_height = 0.03  # 增加滑块高度
             ax_slider = plt.axes((0.45, slider_y, slider_width, slider_height), 
                                 facecolor=self.colors['background_panel'])
-            self.slider = Slider(ax_slider, '⏰ 时间进度', 0.0, self.total_time, valinit=0.0, 
+            self.slider = Slider(ax_slider, '时间进度', 0.0, self.total_time, valinit=0.0, 
                                color=self.colors['morandi_soft_blue'], 
                                facecolor=self.colors['background_panel'])
             ax_slider.spines['bottom'].set_color(self.colors['morandi_soft_blue'])
@@ -657,7 +655,7 @@ class RealTimeProjection:
             speed_slider_x = 0.87
             ax_speed = plt.axes((speed_slider_x, slider_y, 0.10, slider_height), 
                                facecolor=self.colors['background_panel'])
-            self.speed_slider = Slider(ax_speed, '⚡ 速度', 0.1, 3.0, valinit=1.0, 
+            self.speed_slider = Slider(ax_speed, '速度', 0.1, 3.0, valinit=1.0, 
                                       color=self.colors['accent_gold'], 
                                       facecolor=self.colors['background_panel'])
             ax_speed.spines['bottom'].set_color(self.colors['accent_gold'])
@@ -665,12 +663,12 @@ class RealTimeProjection:
             ax_speed.spines['right'].set_color(self.colors['accent_gold'])
             ax_speed.spines['left'].set_color(self.colors['accent_gold'])
             
-            # 🎯 状态显示面板 - 移到顶部中央
-            status_y = 0.985
-            self.status_text = self.fig.text(0.5, status_y, "🕐 时间: 0.0s | 👁️ 遮蔽状态: 无", 
-                                           ha='center', va='top', fontsize=13, 
+            # 状态显示面板 - 移到左侧合适位置
+            status_y = 0.75
+            self.status_text = self.fig.text(0.2, status_y, "时间: 0.0s | 遮蔽状态: 无", 
+                                           ha='center', va='top', fontsize=12, 
                                            color=self.colors['text_light'], weight='bold',
-                                           bbox=dict(boxstyle="round,pad=0.8", 
+                                           bbox=dict(boxstyle="round,pad=0.6", 
                                                     facecolor=self.colors['background_panel'], 
                                                     edgecolor=self.colors['morandi_sage'], 
                                                     linewidth=2, alpha=0.95))
@@ -717,7 +715,7 @@ class RealTimeProjection:
             geom_info = (
                 f"切锥几何参数\n"
                 f"{'─' * 14}\n"
-                f"⚠️ M1位于球体内部\n"
+                f"M1位于球体内部\n"
                 f"距离: {d:.1f}m\n"
             )
         
@@ -765,17 +763,17 @@ class RealTimeProjection:
         occlusion_ratio = (total_val / total_time * 100) if total_time > 0 else 0.0
         
         stats = (
-            f"📊 遮蔽效果分析\n"
+            f"遮蔽效果分析\n"
             f"{'═' * 16}\n"
-            f"🎯 目标类型: RO真目标\n"
-            f"💨 烟团半径: {self.R_smoke:.1f}m\n"
-            f"⏰ 起爆时间: {self.t_det:.1f}s\n"
-            f"📉 下沉速度: {self.smoke_v_down:.1f}m/s\n"
-            f"🕐 持续时间: {self.smoke_duration:.1f}s\n"
-            f"⏱️ 总遮蔽时长: {total_val:.2f}s\n"
-            f"📈 遮蔽效率: {occlusion_ratio:.1f}%\n"
+            f"目标类型: RO真目标\n"
+            f"烟团半径: {self.R_smoke:.1f}m\n"
+            f"起爆时间: {self.t_det:.1f}s\n"
+            f"下沉速度: {self.smoke_v_down:.1f}m/s\n"
+            f"持续时间: {self.smoke_duration:.1f}s\n"
+            f"总遮蔽时长: {total_val:.2f}s\n"
+            f"遮蔽效率: {occlusion_ratio:.1f}%\n"
             f"{'═' * 16}\n"
-            f"{'🟢 轻度遮蔽' if occlusion_ratio < 30 else '🟡 中度遮蔽' if occlusion_ratio < 60 else '🔴 高度遮蔽'}"
+            f"{'轻度遮蔽' if occlusion_ratio < 30 else '中度遮蔽' if occlusion_ratio < 60 else '高度遮蔽'}"
         )
         return stats
 
@@ -822,9 +820,9 @@ class RealTimeProjection:
             if self.status_text is not None:
                 occluded = self.is_fully_occluded(t)
                 status_color = self.colors['accent_crimson'] if occluded else self.colors['morandi_sage']
-                status_icon = "🚨" if occluded else "👁️"
+                status_icon = "遮蔽" if occluded else "清晰"
                 status_text = "完全遮蔽" if occluded else "视野清晰"
-                self.status_text.set_text(f"🕐 时间: {t:.1f}s | {status_icon} 遮蔽状态: {status_text}")
+                self.status_text.set_text(f"时间: {t:.1f}s | 遮蔽状态: {status_text}")
                 self.status_text.set_color(status_color)
                 # 更新边框颜色
                 try:
