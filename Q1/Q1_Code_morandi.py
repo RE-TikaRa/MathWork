@@ -6,13 +6,13 @@ from matplotlib.widgets import Button, Slider
 from typing import Optional, Tuple
 import matplotlib
 
-# 设置莫兰迪色系主题和中文字体
+# 设置色系主题和中文字体
 plt.style.use('dark_background')
 matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS', 'DejaVu Sans']
 matplotlib.rcParams['font.monospace'] = ['Microsoft YaHei', 'SimHei', 'Fira Code', 'DejaVu Sans Mono']
 matplotlib.rcParams['axes.unicode_minus'] = False
 
-# 莫兰迪色系配色方案
+# 色系配色方案
 matplotlib.rcParams['axes.facecolor'] = '#2F2F2F'      # 深灰背景
 matplotlib.rcParams['figure.facecolor'] = '#3A3A3A'    # 图形背景
 matplotlib.rcParams['grid.color'] = '#5A5A5A'          # 网格颜色
@@ -30,16 +30,16 @@ class RealTimeProjection:
     """
 
     def __init__(self) -> None:
-        # 莫兰迪色系配色定义
+        # 色系配色定义
         self.colors = {
-            'morandi_sage': '#9CAF88',      # 莫兰迪鼠尾草绿 - 用于RO目标
-            'morandi_dusty_rose': '#D4A5A5', # 莫兰迪玫瑰粉 - 用于FO假目标
-            'morandi_warm_gray': '#A8A5A0',  # 莫兰迪暖灰 - 用于烟团
-            'morandi_soft_blue': '#8FA5C7',  # 莫兰迪柔和蓝 - 用于FY1
-            'morandi_mauve': '#B09FAC',      # 莫兰迪淡紫 - 用于M1导弹
-            'morandi_beige': '#C7B299',      # 莫兰迪米色 - 用于轨迹
-            'morandi_lavender': '#A5A2C7',   # 莫兰迪薰衣草 - 用于切锥
-            'morandi_cream': '#E5D5C8',      # 莫兰迪奶油色 - 用于文字背景
+            'morandi_sage': '#9CAF88',      # 鼠尾草绿 - 用于RO目标
+            'morandi_dusty_rose': '#D4A5A5', # 玫瑰粉 - 用于FO假目标
+            'morandi_warm_gray': '#A8A5A0',  # 暖灰 - 用于烟团
+            'morandi_soft_blue': '#8FA5C7',  # 柔和蓝 - 用于FY1
+            'morandi_mauve': '#B09FAC',      # 淡紫 - 用于M1导弹
+            'morandi_beige': '#C7B299',      # 米色 - 用于轨迹
+            'morandi_lavender': '#A5A2C7',   # 薰衣草 - 用于切锥
+            'morandi_cream': '#E5D5C8',      # 奶油色 - 用于文字背景
             'background_dark': '#3A3A3A',    # 深色背景
             'text_light': '#E5E5E5',         # 浅色文字
         }
@@ -163,7 +163,7 @@ class RealTimeProjection:
 
     @staticmethod
     def _shade_occlusion(ax, ts: np.ndarray, flags: np.ndarray) -> None:
-        """为遮蔽时间段添加莫兰迪风格的阴影显示"""
+        """为遮蔽时间段添加风格的阴影显示"""
         if ts is None or flags is None:
             return
         on = False
@@ -174,7 +174,7 @@ class RealTimeProjection:
                 t_start = ts[i]
             if (not flags[i] and on) or (on and i == len(ts) - 1):
                 t_end = ts[i]
-                # 使用莫兰迪鼠尾草绿阴影表示遮蔽区域
+                # 使用鼠尾草绿阴影表示遮蔽区域
                 ax.axvspan(t_start, t_end, color='#9CAF88', alpha=0.3, 
                           label='遮蔽时段' if t_start == ts[flags].min() else '')
                 on = False
@@ -188,7 +188,7 @@ class RealTimeProjection:
 
         ax.clear()
         
-        # 设置莫兰迪风格的3D场景外观
+        # 设置风格的3D场景外观
         ax.xaxis.pane.fill = False
         ax.yaxis.pane.fill = False  
         ax.zaxis.pane.fill = False
@@ -200,13 +200,13 @@ class RealTimeProjection:
         M1 = self.get_M1_position(t)
         occluded = self.is_fully_occluded(t)
 
-        # 固定对象：使用莫兰迪配色，增大尺寸避免重叠
+        # 固定对象：使用配色，增大尺寸避免重叠
         ax.scatter(*self.FO, color=self.colors['morandi_dusty_rose'], s=180, 
                   label='FO (假目标)', marker='*', edgecolors=self.colors['text_light'], linewidth=2)
         ax.scatter(*self.RO_center, color=self.colors['morandi_sage'], s=180, 
                   label='RO (真目标)', marker='o', edgecolors=self.colors['text_light'], linewidth=2)
 
-        # 球体线框：使用莫兰迪配色，减少密度避免视觉混乱
+        # 球体线框：使用配色，减少密度避免视觉混乱
         if self.show_sphere:
             u = np.linspace(0, 2 * np.pi, 24)
             v = np.linspace(0, np.pi, 16)
@@ -222,7 +222,7 @@ class RealTimeProjection:
         ax.scatter(*M1, color=m1_color, s=m1_size, label=f'M1 t={t:.1f}s', marker=m1_marker,
                   edgecolors=self.colors['text_light'], linewidth=2)
 
-        # FY1 无人机运动与投弹/弹体轨迹：使用莫兰迪配色
+        # FY1 无人机运动与投弹/弹体轨迹：使用配色
         if self.show_fy1:
             fy_t = float(max(0.0, t))
             fy_pos = self.FY1_start + self.fy_dir * (self.fy_speed * fy_t)
@@ -245,7 +245,7 @@ class RealTimeProjection:
                 ax.plot(pos_seg[:, 0], pos_seg[:, 1], pos_seg[:, 2], color=self.colors['morandi_beige'], 
                        linestyle='--', linewidth=2.5, alpha=0.9, label='弹体轨迹')
 
-        # 烟团球：使用莫兰迪配色
+        # 烟团球：使用配色
         S = self._smoke_center(t)
         if self.show_smoke and S is not None:
             u_s = np.linspace(0, 2 * np.pi, 20)
@@ -260,7 +260,7 @@ class RealTimeProjection:
             ax.scatter(*self.pos_det, color=self.colors['morandi_cream'], s=80, label='烟团起爆点', 
                       marker='*', edgecolors='#3A3A3A', linewidth=1.5)
 
-        # 切锥：使用莫兰迪配色
+        # 切锥：使用配色
         to_center = self.RO_center - M1
         dist = float(np.linalg.norm(to_center))
         if dist > self.RO_radius + 1e-9:
@@ -296,13 +296,13 @@ class RealTimeProjection:
                 ax.scatter(*center_rim, color=rim_color, s=80, zorder=5, marker='o', 
                           edgecolors=self.colors['text_light'], linewidth=1.5)
 
-        # 轴线：使用莫兰迪配色
+        # 轴线：使用配色
         if self.show_axis:
             axis_color = self.colors['morandi_lavender'] if not occluded else self.colors['morandi_dusty_rose']
             ax.plot([M1[0], self.RO_center[0]], [M1[1], self.RO_center[1]], [M1[2], self.RO_center[2]],
                     color=axis_color, linestyle='-.', linewidth=2.5, alpha=0.9, label='视线轴线')
 
-        # M1轨迹：使用莫兰迪配色
+        # M1轨迹：使用配色
         t2 = min(float(t) + 1.0, self.total_time)
         traj_t = np.linspace(max(0.0, t2 - 1.0), t2, 50)
         traj = np.array([self.get_M1_position(tt) for tt in traj_t])
@@ -378,7 +378,7 @@ class RealTimeProjection:
         ax.set_zlim(-50, 2500)
 
     def _build_layout(self):
-        """构建莫兰迪色系的界面布局，优化间距避免重叠"""
+        """构建色系的界面布局，优化间距避免重叠"""
         # 增大窗口尺寸以提供更好的视觉体验和避免重叠
         self.fig = plt.figure(figsize=(20, 16))
         
@@ -411,7 +411,7 @@ class RealTimeProjection:
         self._times, self._areas, self._dists = ts, angles_deg, dists
         self._occluded_ts, self._occluded_flags, self._occluded_total = self.analyze_full_occlusion(ts)
 
-        # 图1：视线半角变化 - 莫兰迪配色
+        # 图1：视线半角变化 - 配色
         self.ax_area.plot(ts, angles_deg, color=self.colors['morandi_dusty_rose'], linewidth=3, alpha=0.9)
         self.ax_area.set_title('图1 - 视线半角变化', fontsize=14, family='Microsoft YaHei', 
                               color=self.colors['text_light'], weight='bold', pad=15)
@@ -421,7 +421,7 @@ class RealTimeProjection:
         self.ax_area.tick_params(colors=self.colors['text_light'], labelsize=10)
         self._shade_occlusion(self.ax_area, ts, self._occluded_flags)
 
-        # 图2：距离变化 - 莫兰迪配色
+        # 图2：距离变化 - 配色
         self.ax_dist.plot(ts, dists, color=self.colors['morandi_soft_blue'], linewidth=3, alpha=0.9)
         self.ax_dist.set_title('图2 - M1到RO距离', fontsize=14, family='Microsoft YaHei', 
                               color=self.colors['text_light'], weight='bold', pad=15)
@@ -431,7 +431,7 @@ class RealTimeProjection:
         self.ax_dist.tick_params(colors=self.colors['text_light'], labelsize=10)
         self._shade_occlusion(self.ax_dist, ts, self._occluded_flags)
 
-        # 初始化右上角参数面板 - 莫兰迪样式，调整文字大小避免重叠
+        # 初始化右上角参数面板 - 样式，调整文字大小避免重叠
         self.info_text = self.ax_info.text(0.05, 0.95, self._compose_info_text(0.0), 
                                           va='top', ha='left', fontsize=8, 
                                           family='Microsoft YaHei', color=self.colors['text_light'],
@@ -456,7 +456,7 @@ class RealTimeProjection:
         except Exception as e:
             print(f"初始化绘制失败: {e}")
 
-        # 控制按钮：莫兰迪配色，优化尺寸和布局
+        # 控制按钮：配色，优化尺寸和布局
         try:
             # 优化按钮尺寸参数
             btn_height = 0.04  # 适中的按钮高度
