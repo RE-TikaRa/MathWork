@@ -82,6 +82,7 @@ class RealTimeProjection:
 
         # 信息面板句柄
         self.info_text = None
+        self.status_text = None
 
         # —— 烟团与完全遮蔽设置 ——
         self.g = 9.8  # m/s^2
@@ -385,7 +386,9 @@ class RealTimeProjection:
                     new_l.append(lb)
                     seen.add(lb)
             if new_h:
-                ax.legend(new_h, new_l, loc='upper right')
+                # 将图例放在参数面板内部的空白区域（红框位置）
+                ax.legend(new_h, new_l, loc='center', fontsize=7, framealpha=0.95, 
+                         bbox_to_anchor=(1.35, 0.6), bbox_transform=ax.transAxes)
         except Exception:
             pass
 
@@ -405,34 +408,72 @@ class RealTimeProjection:
             pass
 
     def _build_layout(self) -> None:
-        self.fig = plt.figure(figsize=(15, 10), constrained_layout=True)
-        gs = self.fig.add_gridspec(3, 2, height_ratios=[3, 1, 0.5], width_ratios=[1, 1])
-        self.ax3d = self.fig.add_subplot(gs[0, :], projection='3d')
+        # 模仿提供的界面布局：左上3D查看器，右上参数面板，中间两个图表，底部控件
+        self.fig = plt.figure(figsize=(16, 12))
+        
+        # 创建网格布局：3行2列
+        # 第1行：左边3D查看器，右边参数面板
+        # 第2行：两个图表（图1和图2）
+        # 第3行：播放控制区域
+        gs = self.fig.add_gridspec(3, 2, 
+                                   height_ratios=[2.8, 1.8, 0.6], 
+                                   width_ratios=[2.2, 1],
+                                   hspace=0.25, wspace=0.15)
+        
+        # 左上：3D查看器
+        self.ax3d = self.fig.add_subplot(gs[0, 0], projection='3d')
+        
+        # 右上：参数信息面板
+        self.ax_info = self.fig.add_subplot(gs[0, 1])
+        self.ax_info.axis('off')
+        
+        # 中下：图1和图2
         self.ax_area = self.fig.add_subplot(gs[1, 0])
         self.ax_dist = self.fig.add_subplot(gs[1, 1])
-        self.ax_info = self.fig.add_subplot(gs[2, :])
+        
+        # 底部控制区域（跨两列）
+        self.ax_control = self.fig.add_subplot(gs[2, :])
+        self.ax_control.axis('off')
+        
+        try:
+            # 调整边距，避免元素重叠
+            self.fig.subplots_adjust(left=0.05, right=0.98, top=0.95, bottom=0.15, hspace=0.25, wspace=0.15)
+        except Exception:
+            pass
 
         # 分析曲线 + 遮蔽预计算
         ts, angles_deg, dists = self.analyze_projection_area()
         self._times, self._areas, self._dists = ts, angles_deg, dists
         self._occluded_ts, self._occluded_flags, self._occluded_total = self.analyze_full_occlusion(ts)
 
-        self.ax_area.plot(ts, angles_deg, 'r-')
-        self.ax_area.set_title('视线半角 (度)')
-        self.ax_area.set_xlabel('t (s)')
-        self.ax_area.set_ylabel('角度 (deg)')
-        self.ax_area.grid(True)
+        # 图1：视线半角变化
+        self.ax_area.plot(ts, angles_deg, 'r-', linewidth=2)
+        self.ax_area.set_title('图1 - 视线半角变化', fontsize=12, family='Microsoft YaHei')
+        self.ax_area.set_xlabel('时间 (s)', fontsize=10)
+        self.ax_area.set_ylabel('半角 (°)', fontsize=10)
+        self.ax_area.grid(True, alpha=0.3)
         self._shade_occlusion(self.ax_area, ts, self._occluded_flags)
 
-        self.ax_dist.plot(ts, dists, 'b-')
-        self.ax_dist.set_title('M1到球心距离')
-        self.ax_dist.set_xlabel('t (s)')
-        self.ax_dist.set_ylabel('距离 (m)')
-        self.ax_dist.grid(True)
+        # 图2：距离变化
+        self.ax_dist.plot(ts, dists, 'b-', linewidth=2)
+        self.ax_dist.set_title('图2 - M1到RO距离', fontsize=12, family='Microsoft YaHei')
+        self.ax_dist.set_xlabel('时间 (s)', fontsize=10)
+        self.ax_dist.set_ylabel('距离 (m)', fontsize=10)
+        self.ax_dist.grid(True, alpha=0.3)
         self._shade_occlusion(self.ax_dist, ts, self._occluded_flags)
 
         self.time_cursor_area = self.ax_area.axvline(0.0, color='k', ls='--', alpha=0.7)
         self.time_cursor_dist = self.ax_dist.axvline(0.0, color='k', ls='--', alpha=0.7)
+
+        # 设置3D查看器标题
+        self.ax3d.set_title('3D Viewer - M1视角下的RO切锥投影', fontsize=14, family='Microsoft YaHei', pad=20)
+
+        # 初始化右上角参数面板 - 调整字体大小避免重叠
+        self.info_text = self.ax_info.text(0.02, 0.98, self._compose_info_text(0.0), 
+                                          va='top', ha='left', fontsize=8, 
+                                          family='Microsoft YaHei', 
+                                          transform=self.ax_info.transAxes,
+                                          bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8))
 
         # 初始 3D 视角
         try:
@@ -446,105 +487,136 @@ class RealTimeProjection:
         except Exception:
             pass
 
-        # —— 交互控件 ——
+        # —— 交互控件（放在底部控制区域）——
         try:
-            # 播放/暂停/重置
-            ax_play = self.fig.add_axes((0.10, 0.02, 0.07, 0.05))
-            ax_pause = self.fig.add_axes((0.18, 0.02, 0.07, 0.05))
-            ax_reset = self.fig.add_axes((0.26, 0.02, 0.07, 0.05))
-            self.btn_play = Button(ax_play, '播放')
-            self.btn_pause = Button(ax_pause, '暂停')
-            self.btn_reset = Button(ax_reset, '重置')
+            # 播放控制按钮组 - 调整位置避免重叠
+            btn_width = 0.07
+            btn_height = 0.035
+            btn_y = 0.05  # 提高按钮位置
+            
+            ax_play = self.fig.add_axes((0.08, btn_y, btn_width, btn_height))
+            ax_pause = self.fig.add_axes((0.16, btn_y, btn_width, btn_height))
+            ax_reset = self.fig.add_axes((0.24, btn_y, btn_width, btn_height))
+            
+            self.btn_play = Button(ax_play, '播放', color='lightgreen')
+            self.btn_pause = Button(ax_pause, '暂停', color='lightcoral')
+            self.btn_reset = Button(ax_reset, '重置', color='lightblue')
+            
             self.btn_play.on_clicked(self._on_play)
             self.btn_pause.on_clicked(self._on_pause)
             self.btn_reset.on_clicked(self._on_reset)
 
-            # 时间滑块
-            ax_slider = self.fig.add_axes((0.10, 0.09, 0.60, 0.03))
-            self.slider = Slider(ax_slider, '时间', 0.0, self.total_time, valinit=0.0, valstep=self.dt)
+            # 时间滑块 - 调整位置和大小
+            ax_slider = self.fig.add_axes((0.35, btn_y + 0.015, 0.4, 0.025))
+            self.slider = Slider(ax_slider, '时间进度', 0.0, self.total_time, valinit=0.0, valstep=self.dt)
             self.slider.on_changed(self._on_slider)
 
-            # 倍速滑块
-            ax_speed = self.fig.add_axes((0.72, 0.09, 0.18, 0.03))
+            # 倍速滑块 - 分开位置避免重叠
+            ax_speed = self.fig.add_axes((0.35, btn_y - 0.025, 0.25, 0.025))
             self.speed_slider = Slider(ax_speed, '倍速', 0.1, 4.0, valinit=self.play_speed, valstep=0.1)
             self.speed_slider.on_changed(self._on_speed_slider)
 
-            # 视角锁定/重置
-            ax_lock = self.fig.add_axes((0.34, 0.02, 0.12, 0.05))
-            ax_vreset = self.fig.add_axes((0.47, 0.02, 0.12, 0.05))
-            self.btn_lock_view = Button(ax_lock, f"锁定视角: {'开' if self._preserve_view else '关'}")
-            self.btn_view_reset = Button(ax_vreset, '重置视角')
+            # 视角控制按钮 - 调整到右侧
+            ax_lock = self.fig.add_axes((0.78, btn_y + 0.015, 0.08, btn_height))
+            ax_vreset = self.fig.add_axes((0.87, btn_y + 0.015, 0.08, btn_height))
+            
+            self.btn_lock_view = Button(ax_lock, f"锁定视角", color='lightyellow')
+            self.btn_view_reset = Button(ax_vreset, '重置视角', color='lightgray')
+            
             self.btn_lock_view.on_clicked(self._on_toggle_view_lock)
             self.btn_view_reset.on_clicked(self._on_reset_view)
 
-            # 信息面板
-            self.ax_info.axis('off')
-            self.info_text = self.ax_info.text(0.01, 0.98, self._compose_info_text(0.0), va='top', ha='left',
-                                               fontsize=10, family='Microsoft YaHei')
-
             # 键盘事件
             self.fig.canvas.mpl_connect('key_press_event', self._on_key)
-        except Exception:
+        except Exception as e:
+            print(f"控件创建失败: {e}")
             pass
 
     def _compose_info_text(self, t: float) -> str:
+        """生成右上角参数面板的详细信息显示"""
         M1 = self.get_M1_position(t)
         to_center = self.RO_center - M1
         d = float(np.linalg.norm(to_center))
         R = self.RO_radius
-        occluded, total = self.is_fully_occluded(t), float(self._occluded_total)
+        occluded = self.is_fully_occluded(t)
+        total = float(self._occluded_total)
         S = self._smoke_center(t)
-        # FY1 与弹体信息（仅展示关键点）
-        fy_pos = self.FY1_start + self.fy_dir * (self.fy_speed * max(0.0, t))
-        grenade_info = ''
-        if t < self.t_drop:
-            grenade_info = f"FY1: ({fy_pos[0]:.2f},{fy_pos[1]:.2f},{fy_pos[2]:.2f}) m  |  投弹: t={self.t_drop:.1f}s"
-        elif t < self.t_det:
-            dtg = t - self.t_drop
-            gpos = self.pos_drop + (self.fy_speed * self.fy_dir) * dtg + np.array([0.0, 0.0, -0.5 * self.g * dtg * dtg])
-            grenade_info = (
-                f"FY1: ({fy_pos[0]:.2f},{fy_pos[1]:.2f},{fy_pos[2]:.2f}) m  |  弹体: ({gpos[0]:.2f},{gpos[1]:.2f},{gpos[2]:.2f}) m\n"
-                f"投弹: t={self.t_drop:.1f}s  起爆: t={self.t_det:.1f}s"
-            )
-        else:
-            grenade_info = (
-                f"FY1: ({fy_pos[0]:.2f},{fy_pos[1]:.2f},{fy_pos[2]:.2f}) m  |  起爆点: ({self.pos_det[0]:.2f},{self.pos_det[1]:.2f},{self.pos_det[2]:.2f}) m\n"
-                f"投弹: t={self.t_drop:.1f}s  起爆: t={self.t_det:.1f}s"
-            )
+        
+        # 切锥几何参数
         if d > R:
             alpha = float(np.arcsin(R / d))
             alpha_deg = float(np.degrees(alpha))
             apex_deg = 2.0 * alpha_deg
             h_max = d * float(np.cos(alpha))
             rim_radius = R
-            s_gen = d
-            d_axis_near = d - R
-            d_axis_far = d + R
             d_tangent = float(np.sqrt(max(0.0, d*d - R*R)))
-            base = (
-                f"t: {t:.2f} s\n"
-                f"M1: ({M1[0]:.2f}, {M1[1]:.2f}, {M1[2]:.2f}) m\n"
-                f"|M1-RO中心|: {d:.3f} m\n"
-                f"半角 α: {alpha_deg:.3f} °    顶角 2α: {apex_deg:.3f} °\n"
-                f"顶点→切面圆心 h: {h_max:.3f} m    底面半径: {rim_radius:.3f} m\n"
-                f"母线长度: {s_gen:.3f} m\n"
-                f"轴向到球近/远表面: {d_axis_near:.3f} / {d_axis_far:.3f} m\n"
-                f"到任一切点(切线段): {d_tangent:.3f} m"
+            
+            geom_info = (
+                f"切锥几何参数\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"距离: {d:.1f} m\n"
+                f"半角α: {alpha_deg:.2f}°\n"
+                f"顶角: {apex_deg:.2f}°\n"
+                f"切面高: {h_max:.1f} m\n"
+                f"切面半径: {rim_radius:.1f} m\n"
             )
-            smoke_line = (f"\n{grenade_info}"
-                           f"\n烟团: {'无' if S is None else f'({S[0]:.2f},{S[1]:.2f},{S[2]:.2f}) m, r={self.smoke_radius:.1f} m'}"
-                           f"\n完全遮蔽: {'YES' if occluded else 'NO'}    累计完全遮蔽: {total:.2f} s")
-            return base + smoke_line
         else:
-            return (
-                f"t: {t:.2f} s\n"
-                f"M1 位于球体内部，切锥无定义\n"
-                f"M1: ({M1[0]:.2f}, {M1[1]:.2f}, {M1[2]:.2f}) m\n"
-                f"|M1-RO中心|: {d:.3f} m    R: {R:.3f} m"
-                f"\n{grenade_info}"
-                f"\n烟团: {'无' if S is None else f'({S[0]:.2f},{S[1]:.2f},{S[2]:.2f}) m, r={self.smoke_radius:.1f} m'}"
-                f"\n完全遮蔽: {'YES' if occluded else 'NO'}    累计完全遮蔽: {total:.2f} s"
+            geom_info = (
+                f"切锥几何参数\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"⚠️ M1位于球体内部\n"
+                f"距离: {d:.1f} m\n"
             )
+        
+        # 运动状态参数
+        velocity_kmh = self.velocity * 3.6  # 转换为km/h
+        remaining_dist = float(np.linalg.norm(self.FO - M1))
+        remaining_time = remaining_dist / self.velocity
+        
+        motion_info = (
+            f"\n运动状态\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"时间: {t:.2f} s\n"
+            f"速度: {self.velocity:.0f} m/s\n"
+            f"位置: ({M1[0]:.0f},{M1[1]:.0f},{M1[2]:.0f})\n"
+            f"剩余: {remaining_dist:.0f} m\n"
+        )
+        
+        # FY1和烟雾状态
+        fy_pos = self.FY1_start + self.fy_dir * (self.fy_speed * max(0.0, t))
+        
+        if t < self.t_drop:
+            fy_status = f"FY1: ({fy_pos[0]:.0f},{fy_pos[1]:.0f},{fy_pos[2]:.0f})"
+            grenade_status = f"投弹: {self.t_drop - t:.1f} s"
+        elif t < self.t_det:
+            dtg = t - self.t_drop
+            gpos = self.pos_drop + (self.fy_speed * self.fy_dir) * dtg + np.array([0.0, 0.0, -0.5 * self.g * dtg * dtg])
+            fy_status = f"FY1: ({fy_pos[0]:.0f},{fy_pos[1]:.0f},{fy_pos[2]:.0f})"
+            grenade_status = f"弹体: ({gpos[0]:.0f},{gpos[1]:.0f},{gpos[2]:.0f})\n爆炸: {self.t_det - t:.1f} s"
+        else:
+            fy_status = f"FY1: ({fy_pos[0]:.0f},{fy_pos[1]:.0f},{fy_pos[2]:.0f})"
+            if S is not None:
+                grenade_status = f"烟雾: ({S[0]:.0f},{S[1]:.0f},{S[2]:.0f})\n半径: {self.smoke_radius:.0f} m"
+            else:
+                grenade_status = "烟雾已消散"
+        
+        fy_info = (
+            f"\nFY1干扰状态\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"{fy_status}\n"
+            f"{grenade_status}\n"
+        )
+        
+        # 遮蔽分析结果
+        occlusion_info = (
+            f"\n遮蔽分析\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"状态: {'● 完全遮蔽' if occluded else '○ 未遮蔽'}\n"
+            f"累计: {total:.2f} s\n"
+            f"效率: {(total/self.total_time)*100:.1f}%\n"
+        )
+        
+        return geom_info + motion_info + fy_info + occlusion_info
 
     # 事件与交互
     def _on_play(self, _event=None):
@@ -599,6 +671,11 @@ class RealTimeProjection:
     def _on_speed_slider(self, value):
         try:
             self.play_speed = max(0.1, float(value))
+            # 动态更新标签为“X倍速”
+            if self.speed_slider is not None:
+                self.speed_slider.label.set_text(f"{self.play_speed:.0f}倍速")
+                if self.fig is not None:
+                    self.fig.canvas.draw_idle()
         except Exception:
             self.play_speed = 1.0
 
@@ -621,6 +698,8 @@ class RealTimeProjection:
             self.show_rim = not self.show_rim
         elif event.key in ('m', 'M'):
             self.show_smoke = not self.show_smoke
+        elif event.key in ('o', 'O'):
+            self.show_overlay = not self.show_overlay
         elif event.key == '+':
             self.cone_alpha = min(1.0, self.cone_alpha + 0.05)
         elif event.key == '-':
@@ -637,12 +716,24 @@ class RealTimeProjection:
             self.time_cursor_dist.set_xdata([t, t])
         if self.info_text is not None:
             self.info_text.set_text(self._compose_info_text(t))
-        if self.slider is not None and not self._updating_slider:
-            self._updating_slider = True
+        if self.status_text is not None:
             try:
-                self.slider.set_val(t)
-            finally:
-                self._updating_slider = False
+                occluded = self.is_fully_occluded(t)
+                self.status_text.set_text(f"时间: {t:.1f} s    完全遮蔽: {'YES' if occluded else 'NO'}")
+            except Exception:
+                pass
+        if self.slider is not None and not self._updating_slider:
+            # 仅在与当前值显著不同时更新，避免递归触发回调
+            try:
+                cur = float(self.slider.val)
+            except Exception:
+                cur = None
+            if cur is None or abs(cur - t) > 1e-9:
+                self._updating_slider = True
+                try:
+                    self.slider.set_val(t)
+                finally:
+                    self._updating_slider = False
 
     def analyze_projection_area(self):
         ts = np.arange(0.0, self.total_time + 1e-9, self.dt)
