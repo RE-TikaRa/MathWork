@@ -67,6 +67,8 @@ class RealTimeProjection:
         self.show_smoke = True
         self.show_fy1 = True
         self.cone_alpha = 0.6
+        # 3D 叠加信息开关
+        self.show_overlay = True
 
         # 视角与播放控制
         self._default_view = (30.0, -60.0)
@@ -107,8 +109,6 @@ class RealTimeProjection:
         self._occluded_ts = None
         self._occluded_flags = None
         self._occluded_total = 0.0
-
-    # 播放时保留用户设置的视角（已在上方初始化）
 
     def get_M1_position(self, t: float) -> np.ndarray:
         return self.M1_start + self.direction * (self.velocity * float(t))
@@ -338,7 +338,7 @@ class RealTimeProjection:
         else:
             ax.text2D(0.02, 0.95, 'M1 位于球体内部：切锥无定义', transform=ax.transAxes, color='crimson')
 
-        # 轴线
+    # 轴线
         if self.show_axis:
             ax.plot([M1[0], self.RO_center[0]], [M1[1], self.RO_center[1]], [M1[2], self.RO_center[2]],
                     color='crimson', ls='--', lw=1.2, alpha=0.8, label='轴线')
@@ -354,6 +354,26 @@ class RealTimeProjection:
         ax.set_ylabel('Y (m)')
         ax.set_zlabel('Z (m)')  # type: ignore[attr-defined]
         ax.set_title(f'M1 视角下 RO 切面圆锥 (t={t:.1f}s)')
+        # 3D 叠加关键参数（便于“实时展示”直观查看）
+        if self.show_overlay:
+            to_center = self.RO_center - M1
+            d = float(np.linalg.norm(to_center))
+            occluded = self.is_fully_occluded(t)
+            if d > self.RO_radius:
+                alpha = float(np.arcsin(self.RO_radius / d))
+                alpha_deg = float(np.degrees(alpha))
+                apex_deg = 2.0 * alpha_deg
+                overlay = (
+                    f"t={t:.2f}s  d={d:.2f}m  α={alpha_deg:.2f}°  顶角={apex_deg:.2f}°  "
+                    f"遮蔽={'YES' if occluded else 'NO'}"
+                )
+            else:
+                overlay = f"t={t:.2f}s  M1位于球内  遮蔽={'YES' if occluded else 'NO'}"
+            try:
+                ax.text2D(0.02, 0.98, overlay, transform=ax.transAxes, va='top', ha='left',
+                          fontsize=9, family='Microsoft YaHei', bbox=dict(fc='white', alpha=0.6, ec='none'))
+            except Exception:
+                pass
         # 图例去重（避免重复项堆积）
         try:
             handles, labels = ax.get_legend_handles_labels()
@@ -417,6 +437,53 @@ class RealTimeProjection:
         # 初始 3D 视角
         try:
             self.ax3d.view_init(elev=self._default_view[0], azim=self._default_view[1])  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        # 初始化一帧，立即填充信息面板/时间游标
+        try:
+            self._update_frame(0)
+        except Exception:
+            pass
+
+        # —— 交互控件 ——
+        try:
+            # 播放/暂停/重置
+            ax_play = self.fig.add_axes((0.10, 0.02, 0.07, 0.05))
+            ax_pause = self.fig.add_axes((0.18, 0.02, 0.07, 0.05))
+            ax_reset = self.fig.add_axes((0.26, 0.02, 0.07, 0.05))
+            self.btn_play = Button(ax_play, '播放')
+            self.btn_pause = Button(ax_pause, '暂停')
+            self.btn_reset = Button(ax_reset, '重置')
+            self.btn_play.on_clicked(self._on_play)
+            self.btn_pause.on_clicked(self._on_pause)
+            self.btn_reset.on_clicked(self._on_reset)
+
+            # 时间滑块
+            ax_slider = self.fig.add_axes((0.10, 0.09, 0.60, 0.03))
+            self.slider = Slider(ax_slider, '时间', 0.0, self.total_time, valinit=0.0, valstep=self.dt)
+            self.slider.on_changed(self._on_slider)
+
+            # 倍速滑块
+            ax_speed = self.fig.add_axes((0.72, 0.09, 0.18, 0.03))
+            self.speed_slider = Slider(ax_speed, '倍速', 0.1, 4.0, valinit=self.play_speed, valstep=0.1)
+            self.speed_slider.on_changed(self._on_speed_slider)
+
+            # 视角锁定/重置
+            ax_lock = self.fig.add_axes((0.34, 0.02, 0.12, 0.05))
+            ax_vreset = self.fig.add_axes((0.47, 0.02, 0.12, 0.05))
+            self.btn_lock_view = Button(ax_lock, f"锁定视角: {'开' if self._preserve_view else '关'}")
+            self.btn_view_reset = Button(ax_vreset, '重置视角')
+            self.btn_lock_view.on_clicked(self._on_toggle_view_lock)
+            self.btn_view_reset.on_clicked(self._on_reset_view)
+
+            # 信息面板
+            self.ax_info.axis('off')
+            self.info_text = self.ax_info.text(0.01, 0.98, self._compose_info_text(0.0), va='top', ha='left',
+                                               fontsize=10, family='Microsoft YaHei')
+
+            # 键盘事件
+            self.fig.canvas.mpl_connect('key_press_event', self._on_key)
         except Exception:
             pass
 
@@ -501,6 +568,11 @@ class RealTimeProjection:
             return
         t = float(value)
         self.current_frame = int(round(t / self.dt))
+        # 立即刷新一帧，确保参数即时更新
+        try:
+            self._update_frame(self.current_frame)
+        except Exception:
+            pass
 
     def _on_toggle_view_lock(self, _event=None):
         self._preserve_view = not self._preserve_view
