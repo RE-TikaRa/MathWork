@@ -30,7 +30,7 @@ class RealTimeProjection:
     """
 
     def __init__(self) -> None:
-        # 色系配色定义
+        # 增强莫兰迪色系配色定义
         self.colors = {
             'morandi_sage': '#9CAF88',      # 鼠尾草绿 - 用于RO目标
             'morandi_dusty_rose': '#D4A5A5', # 玫瑰粉 - 用于FO假目标
@@ -40,8 +40,15 @@ class RealTimeProjection:
             'morandi_beige': '#C7B299',      # 米色 - 用于轨迹
             'morandi_lavender': '#A5A2C7',   # 薰衣草 - 用于切锥
             'morandi_cream': '#E5D5C8',      # 奶油色 - 用于文字背景
+            'morandi_terracotta': '#C49A7C', # 赤陶色 - 用于警告
+            'morandi_olive': '#A0A882',      # 橄榄绿 - 用于成功状态
+            'morandi_pearl': '#F0EDE8',      # 珍珠白 - 用于高亮
+            'morandi_slate': '#6B7B7F',      # 石板灰 - 用于次要元素
             'background_dark': '#3A3A3A',    # 深色背景
+            'background_panel': '#2F2F2F',   # 面板背景
             'text_light': '#E5E5E5',         # 浅色文字
+            'accent_gold': '#D4AF37',        # 金色强调
+            'accent_crimson': '#DC143C',     # 深红强调
         }
         
         # 场景定义
@@ -78,7 +85,7 @@ class RealTimeProjection:
         v0 = self.fy_speed * self.fy_dir
         self.pos_det = self.pos_drop + v0 * det_dt + np.array([0.0, 0.0, -0.5 * self.g * det_dt * det_dt])
         
-        # 界面控制
+        # 界面控制和视觉增强
         self.show_sphere = True
         self.show_fy1 = True
         self.show_smoke = True
@@ -86,16 +93,21 @@ class RealTimeProjection:
         self.show_rim = True
         self.show_axis = True
         self.show_overlay = True
+        self.show_grid = True
+        self.show_trajectory = True
+        self.show_effects = True  # 新增：特效开关
         self.cone_alpha = 0.3
         self._preserve_view = True
         self._default_view = (30.0, -60.0)
         
-        # 动画控制
+        # 动画和特效控制
         self.running = False
         self.current_frame = 0
         self.play_speed = 1.0
         self._frame_accum = 0.0
         self._updating_slider = False
+        self.pulse_factor = 0.0  # 新增：脉冲效果因子
+        self.glow_intensity = 1.0  # 新增：发光强度
         
         # 界面组件
         self.fig = None
@@ -188,79 +200,135 @@ class RealTimeProjection:
 
         ax.clear()
         
-        # 设置风格的3D场景外观
+        # 设置美化的3D场景外观
         ax.xaxis.pane.fill = False
         ax.yaxis.pane.fill = False  
         ax.zaxis.pane.fill = False
-        ax.xaxis.pane.set_edgecolor('#5A5A5A')
-        ax.yaxis.pane.set_edgecolor('#5A5A5A')
-        ax.zaxis.pane.set_edgecolor('#5A5A5A')
-        ax.grid(True, alpha=0.4, color='#5A5A5A')
+        ax.xaxis.pane.set_edgecolor(self.colors['morandi_slate'])
+        ax.yaxis.pane.set_edgecolor(self.colors['morandi_slate'])
+        ax.zaxis.pane.set_edgecolor(self.colors['morandi_slate'])
+        
+        # 美化网格
+        if self.show_grid:
+            ax.grid(True, alpha=0.3, color=self.colors['morandi_slate'], linewidth=0.8)
+        
+        # 计算动态效果参数
+        self.pulse_factor = (np.sin(t * 2) + 1) * 0.5  # 0到1的脉冲
         
         M1 = self.get_M1_position(t)
         occluded = self.is_fully_occluded(t)
 
-        # 固定对象：使用配色，增大尺寸避免重叠
-        ax.scatter(*self.FO, color=self.colors['morandi_dusty_rose'], s=180, 
-                  label='FO (假目标)', marker='*', edgecolors=self.colors['text_light'], linewidth=2)
-        ax.scatter(*self.RO_center, color=self.colors['morandi_sage'], s=180, 
-                  label='RO (真目标)', marker='o', edgecolors=self.colors['text_light'], linewidth=2)
+        # 增强的固定对象显示
+        # FO假目标 - 添加脉冲效果
+        fo_size = 200 + (40 * self.pulse_factor if self.show_effects else 0)
+        fo_alpha = 0.9 + (0.1 * self.pulse_factor if self.show_effects else 0)
+        ax.scatter(*self.FO, color=self.colors['morandi_dusty_rose'], s=fo_size, 
+                  label='FO (假目标)', marker='*', edgecolors=self.colors['morandi_pearl'], 
+                  linewidth=2.5, alpha=fo_alpha, zorder=10)
+        
+        # RO真目标 - 根据遮蔽状态动态变化
+        ro_color = self.colors['accent_crimson'] if occluded else self.colors['morandi_sage']
+        ro_size = 220 if occluded else 200
+        ro_glow = self.colors['morandi_pearl'] if occluded else self.colors['morandi_sage']
+        ax.scatter(*self.RO_center, color=ro_color, s=ro_size, 
+                  label='RO (真目标)', marker='o', edgecolors=ro_glow, 
+                  linewidth=3, alpha=0.95, zorder=10)
 
-        # 球体线框：使用配色，减少密度避免视觉混乱
+        # 美化球体线框
         if self.show_sphere:
-            u = np.linspace(0, 2 * np.pi, 24)
-            v = np.linspace(0, np.pi, 16)
+            u = np.linspace(0, 2 * np.pi, 32)  # 增加密度
+            v = np.linspace(0, np.pi, 20)
             x = self.RO_center[0] + self.RO_radius * np.outer(np.cos(u), np.sin(v))
             y = self.RO_center[1] + self.RO_radius * np.outer(np.sin(u), np.sin(v))
             z = self.RO_center[2] + self.RO_radius * np.outer(np.ones_like(u), np.cos(v))
-            ax.plot_wireframe(x, y, z, color=self.colors['morandi_sage'], alpha=0.4, linewidth=1)
+            sphere_color = self.colors['accent_crimson'] if occluded else self.colors['morandi_sage']
+            sphere_alpha = 0.6 if occluded else 0.4
+            ax.plot_wireframe(x, y, z, color=sphere_color, alpha=sphere_alpha, linewidth=1.2)
 
-        # M1 位置：根据遮蔽状态动态改变颜色
-        m1_color = self.colors['morandi_mauve'] if not occluded else self.colors['morandi_dusty_rose']
+        # 增强M1导弹显示
+        m1_base_color = self.colors['morandi_mauve'] if not occluded else self.colors['accent_crimson']
         m1_marker = 'D' if not occluded else '^'
-        m1_size = 200 if not occluded else 220
-        ax.scatter(*M1, color=m1_color, s=m1_size, label=f'M1 t={t:.1f}s', marker=m1_marker,
-                  edgecolors=self.colors['text_light'], linewidth=2)
+        m1_size = 250 + (30 * self.pulse_factor if occluded and self.show_effects else 0)
+        m1_glow = self.colors['morandi_pearl'] if not occluded else self.colors['accent_gold']
+        ax.scatter(*M1, color=m1_base_color, s=m1_size, label=f'M1 t={t:.1f}s', marker=m1_marker,
+                  edgecolors=m1_glow, linewidth=3, alpha=0.95, zorder=10)
 
-        # FY1 无人机运动与投弹/弹体轨迹：使用配色
+        # 增强FY1无人机轨迹显示
         if self.show_fy1:
             fy_t = float(max(0.0, t))
             fy_pos = self.FY1_start + self.fy_dir * (self.fy_speed * fy_t)
-            tt_fy = np.linspace(0.0, fy_t, 50)
-            traj_fy = self.FY1_start + self.fy_dir[None, :] * (self.fy_speed * tt_fy[:, None])
-            ax.plot(traj_fy[:, 0], traj_fy[:, 1], traj_fy[:, 2], color=self.colors['morandi_soft_blue'], 
-                   alpha=0.8, linewidth=3, label='FY1 航迹')
-            ax.scatter(*fy_pos, color=self.colors['morandi_soft_blue'], s=120, label='FY1', marker='s',
-                      edgecolors=self.colors['text_light'], linewidth=2)
-            ax.scatter(*self.pos_drop, color=self.colors['morandi_lavender'], s=100, 
-                      label='投弹点 t=1.5s', marker='v', edgecolors=self.colors['text_light'], linewidth=2)
             
+            # 美化航迹线
+            if self.show_trajectory:
+                tt_fy = np.linspace(0.0, fy_t, 100)  # 增加轨迹密度
+                traj_fy = self.FY1_start + self.fy_dir[None, :] * (self.fy_speed * tt_fy[:, None])
+                
+                # 渐变轨迹效果
+                for i in range(len(traj_fy) - 1):
+                    alpha = 0.3 + 0.7 * (i / len(traj_fy))  # 渐变透明度
+                    ax.plot([traj_fy[i, 0], traj_fy[i+1, 0]], 
+                           [traj_fy[i, 1], traj_fy[i+1, 1]], 
+                           [traj_fy[i, 2], traj_fy[i+1, 2]], 
+                           color=self.colors['morandi_soft_blue'], alpha=alpha, linewidth=2.5)
+            
+            # FY1位置显示
+            fy_size = 150 + (20 * self.pulse_factor if self.show_effects else 0)
+            ax.scatter(*fy_pos, color=self.colors['morandi_soft_blue'], s=fy_size, label='FY1', 
+                      marker='s', edgecolors=self.colors['morandi_pearl'], linewidth=2.5, alpha=0.9)
+            
+            # 投弹点 - 增强显示
+            drop_size = 120 + (15 * self.pulse_factor if self.show_effects else 0)
+            ax.scatter(*self.pos_drop, color=self.colors['morandi_lavender'], s=drop_size, 
+                      label='投弹点 t=1.5s', marker='v', edgecolors=self.colors['accent_gold'], 
+                      linewidth=2.5, alpha=0.95)
+            
+            # 弹体轨迹 - 抛物线轨迹
             if t >= self.t_drop:
                 t0 = self.t_drop
                 t1 = min(t, self.t_det)
-                ts_seg = np.linspace(t0, t1, 50)
+                ts_seg = np.linspace(t0, t1, 80)  # 增加密度
                 dt_seg = ts_seg - t0
                 pos_seg = self.pos_drop[None, :] + (self.fy_speed * self.fy_dir)[None, :] * dt_seg[:, None] \
                           + np.array([0.0, 0.0, -0.5 * self.g])[None, :] * (dt_seg[:, None] ** 2)
-                ax.plot(pos_seg[:, 0], pos_seg[:, 1], pos_seg[:, 2], color=self.colors['morandi_beige'], 
-                       linestyle='--', linewidth=2.5, alpha=0.9, label='弹体轨迹')
+                
+                # 渐变弹体轨迹
+                for i in range(len(pos_seg) - 1):
+                    alpha = 0.4 + 0.6 * (i / len(pos_seg))
+                    ax.plot([pos_seg[i, 0], pos_seg[i+1, 0]], 
+                           [pos_seg[i, 1], pos_seg[i+1, 1]], 
+                           [pos_seg[i, 2], pos_seg[i+1, 2]], 
+                           color=self.colors['morandi_beige'], linestyle='--', 
+                           linewidth=2.5, alpha=alpha)
 
-        # 烟团球：使用配色
+        # 增强烟团显示
         S = self._smoke_center(t)
         if self.show_smoke and S is not None:
-            u_s = np.linspace(0, 2 * np.pi, 20)
-            v_s = np.linspace(0, np.pi, 15)
-            xs = S[0] + self.smoke_radius * np.outer(np.cos(u_s), np.sin(v_s))
-            ys = S[1] + self.smoke_radius * np.outer(np.sin(u_s), np.sin(v_s))
-            zs = S[2] + self.smoke_radius * np.outer(np.ones_like(u_s), np.cos(v_s))
+            # 多层烟团效果
+            for layer in range(3):
+                radius_scale = 1.0 + layer * 0.2
+                alpha_scale = 0.8 - layer * 0.2
+                
+                u_s = np.linspace(0, 2 * np.pi, 24)
+                v_s = np.linspace(0, np.pi, 16)
+                xs = S[0] + self.smoke_radius * radius_scale * np.outer(np.cos(u_s), np.sin(v_s))
+                ys = S[1] + self.smoke_radius * radius_scale * np.outer(np.sin(u_s), np.sin(v_s))
+                zs = S[2] + self.smoke_radius * radius_scale * np.outer(np.ones_like(u_s), np.cos(v_s))
+                
+                smoke_color = self.colors['accent_crimson'] if occluded else self.colors['morandi_warm_gray']
+                smoke_alpha = (0.6 if not occluded else 0.8) * alpha_scale
+                
+                if layer == 0:  # 内核
+                    ax.plot_wireframe(xs, ys, zs, color=smoke_color, alpha=smoke_alpha, linewidth=1.5)
+                else:  # 外层
+                    ax.plot_wireframe(xs, ys, zs, color=smoke_color, alpha=smoke_alpha * 0.5, linewidth=0.8)
             
-            smoke_color = self.colors['morandi_warm_gray'] if not occluded else self.colors['morandi_dusty_rose']
-            smoke_alpha = 0.6 if not occluded else 0.8
-            ax.plot_wireframe(xs, ys, zs, color=smoke_color, alpha=smoke_alpha, linewidth=1.2)
-            ax.scatter(*self.pos_det, color=self.colors['morandi_cream'], s=80, label='烟团起爆点', 
-                      marker='*', edgecolors='#3A3A3A', linewidth=1.5)
+            # 起爆点增强显示
+            det_size = 100 + (25 * self.pulse_factor if self.show_effects else 0)
+            det_color = self.colors['accent_gold'] if occluded else self.colors['morandi_cream']
+            ax.scatter(*self.pos_det, color=det_color, s=det_size, label='烟团起爆点', 
+                      marker='*', edgecolors=self.colors['background_dark'], linewidth=2, alpha=0.95)
 
-        # 切锥：使用配色
+        # 增强切锥显示
         to_center = self.RO_center - M1
         dist = float(np.linalg.norm(to_center))
         if dist > self.RO_radius + 1e-9:
@@ -275,52 +343,85 @@ class RealTimeProjection:
             h_max = dist * float(np.cos(half_angle))
             center_rim = M1 + view_dir * h_max
             rim_radius = self.RO_radius
-            h = np.linspace(0.0, h_max, 20)
-            uu = np.linspace(0.0, 2.0 * np.pi, 60)
+            
+            # 更高密度的切锥
+            h = np.linspace(0.0, h_max, 30)
+            uu = np.linspace(0.0, 2.0 * np.pi, 80)
             H, U = np.meshgrid(h, uu, indexing='ij')
             R_h = H * float(np.tan(half_angle))
             X = M1[0] + view_dir[0] * H + R_h * (np.cos(U) * v1[0] + np.sin(U) * v2[0])
             Y = M1[1] + view_dir[1] * H + R_h * (np.cos(U) * v1[1] + np.sin(U) * v2[1])
             Z = M1[2] + view_dir[2] * H + R_h * (np.cos(U) * v1[2] + np.sin(U) * v2[2])
             
-            cone_color = self.colors['morandi_lavender'] if not occluded else self.colors['morandi_dusty_rose']
-            cone_alpha = 0.3 if not occluded else 0.5
+            # 动态切锥颜色和透明度
+            cone_base_color = self.colors['morandi_lavender'] if not occluded else self.colors['accent_crimson']
+            cone_alpha = (0.25 if not occluded else 0.45) + (0.1 * self.pulse_factor if self.show_effects else 0)
             
             if self.show_cone:
-                ax.plot_surface(X, Y, Z, color=cone_color, alpha=cone_alpha, shade=True, linewidth=0)
-            theta = np.linspace(0.0, 2.0 * np.pi, 120)
+                ax.plot_surface(X, Y, Z, color=cone_base_color, alpha=cone_alpha, 
+                               shade=True, linewidth=0, antialiased=True)
+            
+            # 美化切面圆
+            theta = np.linspace(0.0, 2.0 * np.pi, 150)  # 增加密度
             rim = center_rim + rim_radius * (np.cos(theta)[:, None] * v1 + np.sin(theta)[:, None] * v2)
             if self.show_rim:
-                rim_color = self.colors['morandi_lavender'] if not occluded else self.colors['morandi_dusty_rose']
-                ax.plot(rim[:, 0], rim[:, 1], rim[:, 2], color=rim_color, linewidth=3, label='切面圆')
-                ax.scatter(*center_rim, color=rim_color, s=80, zorder=5, marker='o', 
-                          edgecolors=self.colors['text_light'], linewidth=1.5)
+                rim_color = cone_base_color
+                rim_width = 3.5 + (0.5 * self.pulse_factor if self.show_effects else 0)
+                ax.plot(rim[:, 0], rim[:, 1], rim[:, 2], color=rim_color, linewidth=rim_width, 
+                       label='切面圆', alpha=0.9)
+                
+                # 切面圆心点
+                center_size = 100 + (20 * self.pulse_factor if self.show_effects else 0)
+                ax.scatter(*center_rim, color=rim_color, s=center_size, zorder=8, marker='o', 
+                          edgecolors=self.colors['morandi_pearl'], linewidth=2, alpha=0.9)
 
-        # 轴线：使用配色
+        # 美化视线轴线
         if self.show_axis:
-            axis_color = self.colors['morandi_lavender'] if not occluded else self.colors['morandi_dusty_rose']
+            axis_color = self.colors['morandi_lavender'] if not occluded else self.colors['accent_crimson']
+            axis_width = 2.8 + (0.4 * self.pulse_factor if self.show_effects else 0)
             ax.plot([M1[0], self.RO_center[0]], [M1[1], self.RO_center[1]], [M1[2], self.RO_center[2]],
-                    color=axis_color, linestyle='-.', linewidth=2.5, alpha=0.9, label='视线轴线')
+                    color=axis_color, linestyle='-.', linewidth=axis_width, alpha=0.95, label='视线轴线')
 
-        # M1轨迹：使用配色
-        t2 = min(float(t) + 1.0, self.total_time)
-        traj_t = np.linspace(max(0.0, t2 - 1.0), t2, 50)
-        traj = np.array([self.get_M1_position(tt) for tt in traj_t])
-        ax.plot(traj[:, 0], traj[:, 1], traj[:, 2], '--', color=self.colors['morandi_beige'], 
-               alpha=0.8, linewidth=2.5, label='M1轨迹')
+        # 增强M1轨迹显示
+        if self.show_trajectory:
+            t2 = min(float(t) + 2.0, self.total_time)  # 扩展轨迹长度
+            traj_t = np.linspace(max(0.0, t2 - 2.0), t2, 100)  # 增加密度
+            traj = np.array([self.get_M1_position(tt) for tt in traj_t])
+            
+            # 渐变轨迹效果
+            for i in range(len(traj) - 1):
+                alpha = 0.2 + 0.8 * (i / len(traj))
+                width = 1.5 + 1.5 * (i / len(traj))
+                ax.plot([traj[i, 0], traj[i+1, 0]], 
+                       [traj[i, 1], traj[i+1, 1]], 
+                       [traj[i, 2], traj[i+1, 2]], 
+                       '--', color=self.colors['morandi_beige'], 
+                       alpha=alpha, linewidth=width)
 
-        # 坐标轴标签：使用浅色文字
-        ax.set_xlabel('X (m)', fontsize=12, color=self.colors['text_light'], weight='bold')
-        ax.set_ylabel('Y (m)', fontsize=12, color=self.colors['text_light'], weight='bold')
-        ax.set_zlabel('Z (m)', fontsize=12, color=self.colors['text_light'], weight='bold')
+        # 美化坐标轴标签
+        ax.set_xlabel('X 坐标 (m)', fontsize=13, color=self.colors['text_light'], 
+                     weight='bold', labelpad=10)
+        ax.set_ylabel('Y 坐标 (m)', fontsize=13, color=self.colors['text_light'], 
+                     weight='bold', labelpad=10)
+        ax.set_zlabel('Z 坐标 (m)', fontsize=13, color=self.colors['text_light'], 
+                     weight='bold', labelpad=10)
         
-        # 动态标题：根据遮蔽状态变化颜色
-        title_color = self.colors['morandi_dusty_rose'] if occluded else self.colors['morandi_sage']
-        occlusion_status = "完全遮蔽" if occluded else "无遮蔽"
-        ax.set_title(f'烟幕干扰三维场景 - {occlusion_status} (t={t:.1f}s)', 
-                    fontsize=16, family='Microsoft YaHei', color=title_color, weight='bold', pad=20)
+        # 美化坐标轴刻度
+        ax.tick_params(axis='x', colors=self.colors['morandi_slate'], labelsize=10)
+        ax.tick_params(axis='y', colors=self.colors['morandi_slate'], labelsize=10)
+        ax.tick_params(axis='z', colors=self.colors['morandi_slate'], labelsize=10)
         
-        # 3D 叠加关键参数
+        # 动态增强标题
+        title_base_color = self.colors['morandi_dusty_rose'] if occluded else self.colors['morandi_sage']
+        title_glow_color = self.colors['accent_gold'] if occluded else self.colors['morandi_olive']
+        occlusion_status = "🚨 完全遮蔽" if occluded else "✅ 视野清晰"
+        title_size = 17 + (2 if occluded and self.show_effects else 0)
+        
+        ax.set_title(f'🎯 烟幕干扰三维仿真场景 - {occlusion_status} (t={t:.1f}s)', 
+                    fontsize=title_size, family='Microsoft YaHei', color=title_base_color, 
+                    weight='bold', pad=25)
+        
+        # 美化3D叠加信息面板
         if self.show_overlay:
             to_center = self.RO_center - M1
             d = float(np.linalg.norm(to_center))
@@ -329,21 +430,29 @@ class RealTimeProjection:
                 alpha_deg = float(np.degrees(alpha))
                 apex_deg = 2.0 * alpha_deg
                 overlay = (
-                    f"时间: {t:.2f}s  距离: {d:.1f}m  半角: {alpha_deg:.2f}°  "
-                    f"顶角: {apex_deg:.2f}°  遮蔽: {'完全' if occluded else '无'}"
+                    f"⏱️ 时间: {t:.2f}s  📏 距离: {d:.1f}m\n"
+                    f"📐 半角: {alpha_deg:.2f}°  🔺 顶角: {apex_deg:.2f}°\n"
+                    f"{'🚫 遮蔽状态: 完全' if occluded else '👁️ 遮蔽状态: 无'}"
                 )
             else:
-                overlay = f"时间: {t:.2f}s  M1位于球内  遮蔽: {'完全' if occluded else '无'}"
+                overlay = (
+                    f"⏱️ 时间: {t:.2f}s\n"
+                    f"⚠️ M1位于目标球体内部\n"
+                    f"{'🚫 遮蔽状态: 完全' if occluded else '👁️ 遮蔽状态: 无'}"
+                )
             try:
                 text_color = self.colors['morandi_dusty_rose'] if occluded else self.colors['morandi_sage']
+                bg_color = self.colors['background_panel']
+                border_color = self.colors['accent_crimson'] if occluded else self.colors['morandi_olive']
+                
                 ax.text2D(0.02, 0.98, overlay, transform=ax.transAxes, va='top', ha='left',
                           fontsize=11, family='Microsoft YaHei', color=text_color, weight='bold',
-                          bbox=dict(facecolor=self.colors['background_dark'], alpha=0.9, 
-                                   edgecolor=text_color, linewidth=1.5, pad=8))
+                          bbox=dict(boxstyle="round,pad=1.0", facecolor=bg_color, alpha=0.95, 
+                                   edgecolor=border_color, linewidth=2))
             except Exception:
                 pass
 
-        # 图例：改进样式，避免重叠
+        # 优化图例显示
         try:
             handles, labels = ax.get_legend_handles_labels()
             seen = set()
@@ -354,14 +463,15 @@ class RealTimeProjection:
                     new_l.append(lb)
                     seen.add(lb)
             if new_h:
-                # 调整图例位置，放在左下角避免与其他元素重叠
-                legend = ax.legend(new_h, new_l, loc='lower left', fontsize=8, framealpha=0.95, 
-                                 facecolor=self.colors['background_dark'], 
-                                 edgecolor=self.colors['text_light'], linewidth=1,
-                                 bbox_to_anchor=(0.02, 0.02), ncol=2)
-                legend.get_frame().set_linewidth(1.5)
+                legend = ax.legend(new_h, new_l, loc='lower left', fontsize=9, framealpha=0.95, 
+                                 facecolor=self.colors['background_panel'], 
+                                 edgecolor=self.colors['morandi_slate'], linewidth=2,
+                                 bbox_to_anchor=(0.02, 0.02), ncol=2, columnspacing=1.2)
+                legend.get_frame().set_linewidth(2)
+                # 美化图例文字
                 for text in legend.get_texts():
                     text.set_color(self.colors['text_light'])
+                    text.set_weight('bold')
         except Exception:
             pass
 
@@ -378,77 +488,112 @@ class RealTimeProjection:
         ax.set_zlim(-50, 2500)
 
     def _build_layout(self):
-        """构建色系的界面布局，优化间距避免重叠"""
-        # 增大窗口尺寸以提供更好的视觉体验和避免重叠
-        self.fig = plt.figure(figsize=(20, 16))
+        """构建美化的界面布局，优化视觉效果和用户体验"""
+        # 扩大窗口尺寸提供更佳的视觉体验
+        self.fig = plt.figure(figsize=(22, 18))
+        self.fig.suptitle('🎯 烟幕干扰三维仿真系统', fontsize=20, family='Microsoft YaHei', 
+                         color=self.colors['text_light'], weight='bold', y=0.97)
         
-        # 调整网格布局比例，给控制区域更多空间
-        gs = self.fig.add_gridspec(3, 2, 
-                                   height_ratios=[3.0, 1.8, 1.0], 
-                                   width_ratios=[2.5, 1.2],
-                                   hspace=0.35, wspace=0.25)
+        # 优化网格布局，提供更好的空间分配
+        gs = self.fig.add_gridspec(3, 3, 
+                                   height_ratios=[3.2, 1.6, 0.8], 
+                                   width_ratios=[2.2, 1.0, 0.8],
+                                   hspace=0.3, wspace=0.2)
         
-        # 左上：3D查看器
-        self.ax3d = self.fig.add_subplot(gs[0, 0], projection='3d')
+        # 主3D可视化区域
+        self.ax3d = self.fig.add_subplot(gs[0, :2], projection='3d')
         
-        # 右上：参数信息面板
-        self.ax_info = self.fig.add_subplot(gs[0, 1])
+        # 右侧参数信息面板
+        self.ax_info = self.fig.add_subplot(gs[0, 2])
         self.ax_info.axis('off')
+        self.ax_info.set_facecolor(self.colors['background_panel'])
         
-        # 中下：图1和图2
+        # 中间分析图表区域
         self.ax_area = self.fig.add_subplot(gs[1, 0])
-        self.ax_dist = self.fig.add_subplot(gs[1, 1])
+        self.ax_area.set_facecolor(self.colors['background_panel'])
         
-        # 底部控制区域（跨两列）
+        self.ax_dist = self.fig.add_subplot(gs[1, 1])
+        self.ax_dist.set_facecolor(self.colors['background_panel'])
+        
+        # 新增：遮蔽效果分析图
+        self.ax_occlusion = self.fig.add_subplot(gs[1, 2])
+        self.ax_occlusion.axis('off')
+        self.ax_occlusion.set_facecolor(self.colors['background_panel'])
+        
+        # 底部控制面板（跨所有列）
         self.ax_control = self.fig.add_subplot(gs[2, :])
         self.ax_control.axis('off')
+        self.ax_control.set_facecolor(self.colors['background_dark'])
         
-        # 调整边距，优化按钮区域布局
-        self.fig.subplots_adjust(left=0.06, right=0.96, top=0.92, bottom=0.08, hspace=0.35, wspace=0.25)
+        # 调整边距
+        self.fig.subplots_adjust(left=0.05, right=0.97, top=0.93, bottom=0.07, hspace=0.3, wspace=0.2)
 
-        # 分析曲线 + 遮蔽预计算
+        # 分析数据预计算
         ts, angles_deg, dists = self.analyze_projection_area()
         self._times, self._areas, self._dists = ts, angles_deg, dists
         self._occluded_ts, self._occluded_flags, self._occluded_total = self.analyze_full_occlusion(ts)
 
-        # 图1：视线半角变化 - 配色
-        self.ax_area.plot(ts, angles_deg, color=self.colors['morandi_dusty_rose'], linewidth=3, alpha=0.9)
-        self.ax_area.set_title('图1 - 视线半角变化', fontsize=14, family='Microsoft YaHei', 
+        # 美化图1：视线半角变化
+        self.ax_area.plot(ts, angles_deg, color=self.colors['morandi_dusty_rose'], 
+                         linewidth=4, alpha=0.9, label='视线半角')
+        self.ax_area.fill_between(ts, 0, angles_deg, color=self.colors['morandi_dusty_rose'], 
+                                 alpha=0.2, label='半角区域')
+        self.ax_area.set_title('📐 视线半角变化分析', fontsize=14, family='Microsoft YaHei', 
                               color=self.colors['text_light'], weight='bold', pad=15)
-        self.ax_area.set_xlabel('时间 (s)', fontsize=12, color=self.colors['text_light'])
-        self.ax_area.set_ylabel('半角 (°)', fontsize=12, color=self.colors['text_light'])
-        self.ax_area.grid(True, alpha=0.4, color='#5A5A5A')
-        self.ax_area.tick_params(colors=self.colors['text_light'], labelsize=10)
+        self.ax_area.set_xlabel('时间 (s)', fontsize=11, color=self.colors['text_light'], weight='bold')
+        self.ax_area.set_ylabel('半角 (°)', fontsize=11, color=self.colors['text_light'], weight='bold')
+        self.ax_area.grid(True, alpha=0.3, color=self.colors['morandi_slate'], linewidth=0.8)
+        self.ax_area.tick_params(colors=self.colors['text_light'], labelsize=9)
         self._shade_occlusion(self.ax_area, ts, self._occluded_flags)
+        self.ax_area.legend(loc='upper right', fontsize=9, framealpha=0.9, 
+                           facecolor=self.colors['background_panel'])
 
-        # 图2：距离变化 - 配色
-        self.ax_dist.plot(ts, dists, color=self.colors['morandi_soft_blue'], linewidth=3, alpha=0.9)
-        self.ax_dist.set_title('图2 - M1到RO距离', fontsize=14, family='Microsoft YaHei', 
+        # 美化图2：距离变化
+        self.ax_dist.plot(ts, dists, color=self.colors['morandi_soft_blue'], 
+                         linewidth=4, alpha=0.9, label='M1-RO距离')
+        self.ax_dist.fill_between(ts, min(dists)*0.8, dists, color=self.colors['morandi_soft_blue'], 
+                                 alpha=0.2, label='距离变化')
+        self.ax_dist.axhline(y=self.RO_radius, color=self.colors['accent_crimson'], 
+                            linestyle='--', linewidth=2, alpha=0.8, label='RO半径')
+        self.ax_dist.set_title('📏 M1到RO距离分析', fontsize=14, family='Microsoft YaHei', 
                               color=self.colors['text_light'], weight='bold', pad=15)
-        self.ax_dist.set_xlabel('时间 (s)', fontsize=12, color=self.colors['text_light'])
-        self.ax_dist.set_ylabel('距离 (m)', fontsize=12, color=self.colors['text_light'])
-        self.ax_dist.grid(True, alpha=0.4, color='#5A5A5A')
-        self.ax_dist.tick_params(colors=self.colors['text_light'], labelsize=10)
+        self.ax_dist.set_xlabel('时间 (s)', fontsize=11, color=self.colors['text_light'], weight='bold')
+        self.ax_dist.set_ylabel('距离 (m)', fontsize=11, color=self.colors['text_light'], weight='bold')
+        self.ax_dist.grid(True, alpha=0.3, color=self.colors['morandi_slate'], linewidth=0.8)
+        self.ax_dist.tick_params(colors=self.colors['text_light'], labelsize=9)
         self._shade_occlusion(self.ax_dist, ts, self._occluded_flags)
+        self.ax_dist.legend(loc='upper right', fontsize=9, framealpha=0.9, 
+                           facecolor=self.colors['background_panel'])
 
-        # 初始化右上角参数面板 - 样式，调整文字大小避免重叠
+        # 新增：遮蔽效果统计面板
+        occlusion_stats = self._create_occlusion_stats()
+        self.occlusion_text = self.ax_occlusion.text(0.05, 0.95, occlusion_stats, 
+                                                    va='top', ha='left', fontsize=10, 
+                                                    family='Microsoft YaHei', color=self.colors['text_light'],
+                                                    transform=self.ax_occlusion.transAxes,
+                                                    bbox=dict(boxstyle="round,pad=0.8", 
+                                                             facecolor=self.colors['background_panel'], 
+                                                             edgecolor=self.colors['morandi_olive'], 
+                                                             linewidth=2, alpha=0.95))
+
+        # 美化参数信息面板
         self.info_text = self.ax_info.text(0.05, 0.95, self._compose_info_text(0.0), 
-                                          va='top', ha='left', fontsize=8, 
+                                          va='top', ha='left', fontsize=9, 
                                           family='Microsoft YaHei', color=self.colors['text_light'],
                                           transform=self.ax_info.transAxes,
-                                          bbox=dict(boxstyle="round,pad=0.8", 
-                                                   facecolor=self.colors['background_dark'], 
+                                          bbox=dict(boxstyle="round,pad=1.0", 
+                                                   facecolor=self.colors['background_panel'], 
                                                    edgecolor=self.colors['morandi_sage'], 
                                                    linewidth=2, alpha=0.95))
 
-        # 初始 3D 视角
+        # 初始化3D场景
         try:
             if hasattr(self.ax3d, 'view_init'):
                 self.ax3d.view_init(elev=self._default_view[0], azim=self._default_view[1])
         except Exception:
             pass
 
-        # 初始化一帧
+        # 绘制初始帧
         try:
             self._draw_scene(self.ax3d, 0.0)
             if self.info_text is not None:
@@ -456,58 +601,87 @@ class RealTimeProjection:
         except Exception as e:
             print(f"初始化绘制失败: {e}")
 
-        # 控制按钮：配色，优化尺寸和布局
+        # 美化控制按钮区域
         try:
-            # 优化按钮尺寸参数
-            btn_height = 0.04  # 适中的按钮高度
-            btn_width = 0.10   # 稍宽的按钮便于点击
-            btn_spacing = 0.13  # 合适的按钮间距
-            btn_y = 0.02       # 底部合适位置
+            # 优化按钮布局参数
+            btn_height = 0.05    # 增大按钮高度
+            btn_width = 0.08     # 调整按钮宽度
+            btn_spacing = 0.10   # 优化按钮间距
+            btn_y = 0.02         # 底部位置
             
-            # 播放按钮
-            ax_btn_play = plt.axes((0.12, btn_y, btn_width, btn_height), facecolor=self.colors['morandi_sage'])
-            self.btn_play = Button(ax_btn_play, '播放', color=self.colors['morandi_sage'], 
-                                  hovercolor=self.colors['morandi_dusty_rose'])
-            ax_btn_play.tick_params(labelsize=10)
+            # 🎮 播放按钮 - 使用渐变效果
+            ax_btn_play = plt.axes((0.10, btn_y, btn_width, btn_height), 
+                                  facecolor=self.colors['morandi_sage'])
+            self.btn_play = Button(ax_btn_play, '▶️ 播放', color=self.colors['morandi_sage'], 
+                                  hovercolor=self.colors['morandi_olive'])
+            ax_btn_play.spines['bottom'].set_color(self.colors['morandi_olive'])
+            ax_btn_play.spines['top'].set_color(self.colors['morandi_olive'])
+            ax_btn_play.spines['right'].set_color(self.colors['morandi_olive'])
+            ax_btn_play.spines['left'].set_color(self.colors['morandi_olive'])
             
-            # 暂停按钮
-            ax_btn_pause = plt.axes((0.12 + btn_spacing, btn_y, btn_width, btn_height), 
+            # ⏸️ 暂停按钮
+            ax_btn_pause = plt.axes((0.10 + btn_spacing, btn_y, btn_width, btn_height), 
                                    facecolor=self.colors['morandi_mauve'])
-            self.btn_pause = Button(ax_btn_pause, '暂停', color=self.colors['morandi_mauve'], 
+            self.btn_pause = Button(ax_btn_pause, '⏸️ 暂停', color=self.colors['morandi_mauve'], 
                                    hovercolor=self.colors['morandi_dusty_rose'])
-            ax_btn_pause.tick_params(labelsize=10)
+            ax_btn_pause.spines['bottom'].set_color(self.colors['morandi_dusty_rose'])
+            ax_btn_pause.spines['top'].set_color(self.colors['morandi_dusty_rose'])
+            ax_btn_pause.spines['right'].set_color(self.colors['morandi_dusty_rose'])
+            ax_btn_pause.spines['left'].set_color(self.colors['morandi_dusty_rose'])
             
-            # 重置按钮
-            ax_btn_reset = plt.axes((0.12 + 2*btn_spacing, btn_y, btn_width, btn_height), 
+            # 🔄 重置按钮
+            ax_btn_reset = plt.axes((0.10 + 2*btn_spacing, btn_y, btn_width, btn_height), 
                                    facecolor=self.colors['morandi_beige'])
-            self.btn_reset = Button(ax_btn_reset, '重置', color=self.colors['morandi_beige'], 
-                                   hovercolor=self.colors['morandi_dusty_rose'])
-            ax_btn_reset.tick_params(labelsize=10)
+            self.btn_reset = Button(ax_btn_reset, '🔄 重置', color=self.colors['morandi_beige'], 
+                                   hovercolor=self.colors['morandi_terracotta'])
+            ax_btn_reset.spines['bottom'].set_color(self.colors['morandi_terracotta'])
+            ax_btn_reset.spines['top'].set_color(self.colors['morandi_terracotta'])
+            ax_btn_reset.spines['right'].set_color(self.colors['morandi_terracotta'])
+            ax_btn_reset.spines['left'].set_color(self.colors['morandi_terracotta'])
 
-            # 时间滑块：优化位置和尺寸
-            slider_y = btn_y + 0.01  # 紧贴按钮上方
-            slider_width = 0.35      # 更宽的滑块便于操作
-            slider_height = 0.025    # 合适的滑块高度
-            ax_slider = plt.axes((0.55, slider_y, slider_width, slider_height), facecolor=self.colors['background_dark'])
-            self.slider = Slider(ax_slider, '时间进度', 0.0, self.total_time, valinit=0.0, 
+            # 🎚️ 时间进度滑块 - 美化设计
+            slider_y = btn_y + 0.01
+            slider_width = 0.40   # 扩大滑块宽度
+            slider_height = 0.03  # 增加滑块高度
+            ax_slider = plt.axes((0.45, slider_y, slider_width, slider_height), 
+                                facecolor=self.colors['background_panel'])
+            self.slider = Slider(ax_slider, '⏰ 时间进度', 0.0, self.total_time, valinit=0.0, 
                                color=self.colors['morandi_soft_blue'], 
-                               facecolor=self.colors['background_dark'])
-            
-            # 状态文本：移到顶部显示
-            status_y = 0.95
-            self.status_text = self.fig.text(0.5, status_y, "时间: 0.0s | 遮蔽状态: NO", 
-                                           ha='center', va='center', fontsize=12, 
-                                           color=self.colors['text_light'], weight='bold',
-                                           bbox=dict(boxstyle="round,pad=0.5", 
-                                                    facecolor=self.colors['background_dark'], 
-                                                    edgecolor=self.colors['morandi_sage'], 
-                                                    linewidth=1.5, alpha=0.9))
+                               facecolor=self.colors['background_panel'])
+            ax_slider.spines['bottom'].set_color(self.colors['morandi_soft_blue'])
+            ax_slider.spines['top'].set_color(self.colors['morandi_soft_blue'])
+            ax_slider.spines['right'].set_color(self.colors['morandi_soft_blue'])
+            ax_slider.spines['left'].set_color(self.colors['morandi_soft_blue'])
 
-            # 绑定事件
+            # 🔢 播放速度控制滑块
+            speed_slider_x = 0.87
+            ax_speed = plt.axes((speed_slider_x, slider_y, 0.10, slider_height), 
+                               facecolor=self.colors['background_panel'])
+            self.speed_slider = Slider(ax_speed, '⚡ 速度', 0.1, 3.0, valinit=1.0, 
+                                      color=self.colors['accent_gold'], 
+                                      facecolor=self.colors['background_panel'])
+            ax_speed.spines['bottom'].set_color(self.colors['accent_gold'])
+            ax_speed.spines['top'].set_color(self.colors['accent_gold'])
+            ax_speed.spines['right'].set_color(self.colors['accent_gold'])
+            ax_speed.spines['left'].set_color(self.colors['accent_gold'])
+            
+            # 🎯 状态显示面板 - 移到顶部中央
+            status_y = 0.985
+            self.status_text = self.fig.text(0.5, status_y, "🕐 时间: 0.0s | 👁️ 遮蔽状态: 无", 
+                                           ha='center', va='top', fontsize=13, 
+                                           color=self.colors['text_light'], weight='bold',
+                                           bbox=dict(boxstyle="round,pad=0.8", 
+                                                    facecolor=self.colors['background_panel'], 
+                                                    edgecolor=self.colors['morandi_sage'], 
+                                                    linewidth=2, alpha=0.95))
+
+            # 绑定事件处理器
             self.btn_play.on_clicked(self._on_play)
             self.btn_pause.on_clicked(self._on_pause)
             self.btn_reset.on_clicked(self._on_reset)
             self.slider.on_changed(self._on_slider)
+            self.speed_slider.on_changed(self._on_speed_change)
+            
         except Exception as e:
             print(f"控件创建失败: {e}")
 
@@ -584,6 +758,27 @@ class RealTimeProjection:
         
         return geom_info + motion_info + smoke_info + occlusion_info
 
+    def _create_occlusion_stats(self) -> str:
+        """创建遮蔽效果统计信息"""
+        total_val = self._occluded_total if self._occluded_total is not None else 0.0
+        total_time = self.total_time
+        occlusion_ratio = (total_val / total_time * 100) if total_time > 0 else 0.0
+        
+        stats = (
+            f"📊 遮蔽效果分析\n"
+            f"{'═' * 16}\n"
+            f"🎯 目标类型: RO真目标\n"
+            f"💨 烟团半径: {self.R_smoke:.1f}m\n"
+            f"⏰ 起爆时间: {self.t_det:.1f}s\n"
+            f"📉 下沉速度: {self.smoke_v_down:.1f}m/s\n"
+            f"🕐 持续时间: {self.smoke_duration:.1f}s\n"
+            f"⏱️ 总遮蔽时长: {total_val:.2f}s\n"
+            f"📈 遮蔽效率: {occlusion_ratio:.1f}%\n"
+            f"{'═' * 16}\n"
+            f"{'🟢 轻度遮蔽' if occlusion_ratio < 30 else '🟡 中度遮蔽' if occlusion_ratio < 60 else '🔴 高度遮蔽'}"
+        )
+        return stats
+
     def analyze_projection_area(self):
         ts = np.arange(0.0, self.total_time + 1e-9, self.dt)
         half_angles_deg = []
@@ -614,6 +809,10 @@ class RealTimeProjection:
             frame = int(val / self.dt)
             self.current_frame = min(frame, int(self.total_time / self.dt))
 
+    def _on_speed_change(self, val):
+        """处理播放速度变化"""
+        self.play_speed = float(val)
+
     def _update_frame(self, frame_idx: int):
         t = frame_idx * self.dt
         try:
@@ -622,9 +821,18 @@ class RealTimeProjection:
                 self.info_text.set_text(self._compose_info_text(t))
             if self.status_text is not None:
                 occluded = self.is_fully_occluded(t)
-                status_color = self.colors['morandi_dusty_rose'] if occluded else self.colors['morandi_sage']
-                self.status_text.set_text(f"时间: {t:.1f}s | 遮蔽状态: {'YES' if occluded else 'NO'}")
+                status_color = self.colors['accent_crimson'] if occluded else self.colors['morandi_sage']
+                status_icon = "🚨" if occluded else "👁️"
+                status_text = "完全遮蔽" if occluded else "视野清晰"
+                self.status_text.set_text(f"🕐 时间: {t:.1f}s | {status_icon} 遮蔽状态: {status_text}")
                 self.status_text.set_color(status_color)
+                # 更新边框颜色
+                try:
+                    bbox = self.status_text.get_bbox_patch()
+                    if bbox is not None:
+                        bbox.set_edgecolor(status_color)
+                except Exception:
+                    pass
         except Exception:
             pass
         
