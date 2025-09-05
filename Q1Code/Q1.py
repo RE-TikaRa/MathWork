@@ -274,10 +274,10 @@ md_content += f"""
 """
 
 # 写入MD文件
-with open(r'c:\Users\Tika\Desktop\数学建模\CODE3\C1.md', 'w', encoding='utf-8') as f:
+with open('C1.md', 'w', encoding='utf-8') as f:
     f.write(md_content)
 
-print(f"\n参数分析报告已输出到: c:\\Users\\Tika\\Desktop\\数学建模\\CODE3\\C1.md")
+print(f"\n参数分析报告已输出到: C1.md")
 
 # ================== 可视化图表生成 ==================
 print(f"\n正在生成可视化图表...")
@@ -454,7 +454,7 @@ ax6.set_title('关键事件时间轴')
 ax6.grid(True, alpha=0.3, axis='x')
 
 plt.tight_layout()
-plt.savefig(r'c:\Users\Tika\Desktop\数学建模\CODE3\analysis_charts.png', dpi=300, bbox_inches='tight')
+plt.savefig('analysis_charts.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # 生成单独的高精度3D图
@@ -497,7 +497,7 @@ ax_3d.set_zlabel('Z (m)', fontsize=12)
 ax_3d.set_title('烟幕干扰弹遮蔽过程三维可视化', fontsize=14)
 ax_3d.legend(fontsize=10)
 
-plt.savefig(r'c:\Users\Tika\Desktop\数学建模\CODE3\3d_visualization.png', dpi=300, bbox_inches='tight')
+plt.savefig('3d_visualization.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print("✓ 可视化图表已生成:")
