@@ -8,6 +8,184 @@ import matplotlib.patches as patches
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
 plt.rcParams['axes.unicode_minus'] = False
 
+"""
+==================================================================================
+                        烟幕干扰弹遮蔽分析程序
+==================================================================================
+
+功能说明：
+- 计算烟幕干扰弹对来袭导弹的有效遮蔽时间
+- 生成详细的参数分析报告和可视化图表
+- 包含完整的数学公式推导和敏感性分析
+
+使用方法：
+1. 运行程序：python Q1.py
+2. 查看数学公式推导：将 SHOW_MATHEMATICAL_DERIVATION 设置为 True
+3. 生成的文件：C1.md（分析报告）、analysis_charts.png、3d_visualization.png
+
+作者：数学建模团队
+版本：2.0（包含数学公式推导）
+日期：2025年9月5日
+
+==================================================================================
+                        烟幕干扰弹遮蔽分析数学公式推导
+==================================================================================
+
+1. 基本物理模型
+================
+
+1.1 坐标系定义
+- 采用三维直角坐标系 (x, y, z)
+- z 轴正方向向上，表示高度
+- 原点设在地面假目标位置
+
+1.2 基本参数定义
+符号 | 含义 | 单位
+-----|------|------
+g    | 重力加速度 | m/s²
+v_m  | 导弹速度 | m/s
+v_u  | 无人机速度 | m/s
+v_s  | 烟幕下沉速度 | m/s
+R    | 烟幕有效半径 | m
+T    | 烟幕持续时间 | s
+
+2. 运动轨迹方程
+================
+
+2.1 导弹运动轨迹
+导弹 M1 从初始位置 P_M0 = (x_M0, y_M0, z_M0) 以恒定速度 v_m 飞向目标：
+P_M(t) = P_M0 + v_M * t
+
+其中方向向量：
+v_M = v_m * (P_target - P_M0) / |P_target - P_M0|
+
+展开为分量形式：
+x_M(t) = x_M0 + v_Mx * t
+y_M(t) = y_M0 + v_My * t
+z_M(t) = z_M0 + v_Mz * t
+
+2.2 无人机运动轨迹
+无人机 FY1 在水平面内匀速飞行（z 方向速度为 0）：
+P_FY1(t) = P_FY10 + v_FY1 * t
+其中：v_FY1 = (v_FY1x, v_FY1y, 0)
+
+2.3 干扰弹抛物运动
+干扰弹在 t = t_drop 时刻投放，运动方程为：
+P_bomb(t) = P_drop + v_FY1 * (t - t_drop) - 0.5 * g * (t - t_drop)² * e_z
+其中 P_drop = P_FY1(t_drop) 为投放位置。
+
+2.4 烟幕云团运动
+烟幕在 t = t_burst 时刻起爆，随后垂直下沉：
+P_cloud(t) = P_burst - v_s * (t - t_burst) * e_z, t ≥ t_burst
+其中 P_burst 为起爆位置。
+
+3. 遮蔽条件数学化
+====================
+
+3.1 距离函数
+导弹与烟幕中心的距离函数：
+d(t) = |P_M(t) - P_cloud(t)|
+
+3.2 遮蔽条件
+遮蔽条件为：d(t) ≤ R
+即：|P_M(t) - P_cloud(t)|² ≤ R²
+
+4. 解析解推导
+==============
+
+4.1 距离平方函数展开
+设：
+A = P_M0 - P_cloud0
+B = v_M - v_cloud
+
+其中 P_cloud0 和 v_cloud 分别为烟幕的初始位置和速度向量。
+
+则距离平方函数为：
+d²(t) = |A + B * t|² = (A + B * t) · (A + B * t)
+
+展开得：
+d²(t) = A·A + 2(A·B)t + (B·B)t²
+
+4.2 二次不等式
+遮蔽条件转化为二次不等式：
+(B·B)t² + 2(A·B)t + (A·A) - R² ≤ 0
+
+设二次方程 at² + bt + c = 0 的系数为：
+a = B·B = |B|²
+b = 2(A·B)
+c = A·A - R² = |A|² - R²
+
+4.3 判别式分析
+判别式：
+Δ = b² - 4ac = 4(A·B)² - 4|B|²(|A|² - R²)
+
+情况分析：
+- Δ < 0: 无实数解，导弹轨迹不与烟幕球体相交
+- Δ = 0: 一个实数解，导弹轨迹与烟幕球体相切
+- Δ > 0: 两个实数解，导弹轨迹穿越烟幕球体
+
+4.4 解的表达式
+当 Δ ≥ 0 时，遮蔽时间区间为：
+t1 = (-b - √Δ) / (2a)
+t2 = (-b + √Δ) / (2a)
+
+5. 时间窗口匹配
+================
+
+5.1 有效时间区间
+烟幕有效时间区间：[t_smoke_start, t_smoke_end] = [t_burst, t_burst + T]
+导弹在遮蔽半径内的时间区间：[t_dist_start, t_dist_end] = [t1, t2]
+
+5.2 交集计算
+有效遮蔽时间区间为两个区间的交集：
+[t_shield_start, t_shield_end] = [max(t1, t_burst), min(t2, t_burst + T)]
+
+有效遮蔽时间：
+T_shield = max(0, t_shield_end - t_shield_start)
+
+6. 向量分量展开
+================
+
+6.1 具体坐标表示
+设导弹初始位置 P_M0 = (x_M0, y_M0, z_M0)，烟幕初始等效位置 P_cloud0 = (x_C0, y_C0, z_C0)
+
+导弹速度向量：v_M = (v_Mx, v_My, v_Mz)
+烟幕速度向量：v_cloud = (0, 0, -v_s)
+
+6.2 向量运算展开
+A = (x_M0 - x_C0, y_M0 - y_C0, z_M0 - z_C0)
+B = (v_Mx, v_My, v_Mz + v_s)
+
+A·B = (x_M0 - x_C0) * v_Mx + (y_M0 - y_C0) * v_My + (z_M0 - z_C0) * (v_Mz + v_s)
+|B|² = v_Mx² + v_My² + (v_Mz + v_s)²
+|A|² = (x_M0 - x_C0)² + (y_M0 - y_C0)² + (z_M0 - z_C0)²
+
+7. 参数敏感性分析公式
+======================
+
+7.1 半径敏感性
+遮蔽时间关于半径的偏导数：
+∂T_shield/∂R = R / (|B|² * √Δ)
+
+7.2 速度敏感性
+遮蔽时间关于导弹速度的敏感性分析需要考虑速度变化对 B 和判别式 Δ 的影响。
+
+8. 优化目标函数
+================
+
+8.1 最大遮蔽时间目标
+优化目标：max T_shield(t_drop, t_burst, R)
+约束条件：
+- t_drop > 0
+- t_burst > 0
+- R > 0
+- t_burst + t_drop < t_missile_arrival
+
+备注：本公式推导基于理想化假设，实际应用中还需考虑空气阻力、风力、大气扰动等因素的影响。
+
+==================================================================================
+"""
+
 # 参数定义
 g = 9.8  # 重力加速度 (m/s^2)
 v_cloud_sink = 3  # 烟幕云团下沉速度 (m/s)
@@ -51,34 +229,81 @@ cloud_pos_at_t0 = burst_position + v_cloud_sink * t_burst_abs * np.array([0, 0, 
 v_cloud_vec = np.array([0, 0, -v_cloud_sink])
 
 # 求解遮蔽时间窗口的解析解（导弹在球体内）
+"""
+数学推导过程：
+步骤1：建立距离平方函数
+导弹位置：P_M(t) = M1_start + v_M1_vec * t
+烟幕位置：P_cloud(t) = cloud_pos_at_t0 + v_cloud_vec * t
+距离平方：d²(t) = ||P_M(t) - P_cloud(t)||²
+
+步骤2：向量化表示
+设 A = M1_start - cloud_pos_at_t0  （初始位置差向量）
+设 B = v_M1_vec - v_cloud_vec     （相对速度向量）
+则 d²(t) = ||A + B*t||²
+
+步骤3：展开距离平方
+d²(t) = (A + B*t)·(A + B*t)
+      = A·A + 2(A·B)t + (B·B)t²
+      = |A|² + 2(A·B)t + |B|²t²
+
+步骤4：建立遮蔽不等式
+遮蔽条件：d(t) ≤ R
+即：d²(t) ≤ R²
+即：|B|²t² + 2(A·B)t + |A|² - R² ≤ 0
+
+步骤5：求解二次不等式
+标准形式：at² + bt + c ≤ 0
+其中：a = |B|², b = 2(A·B), c = |A|² - R²
+判别式：Δ = b² - 4ac
+解：t₁,₂ = (-b ± √Δ) / (2a)
+"""
 # 距离平方 d(t)^2 = || (M1_start + v_M1_vec*t) - (cloud_pos_at_t0 + v_cloud_vec*t) ||^2
 # d(t)^2 = || (M1_start - cloud_pos_at_t0) + (v_M1_vec - v_cloud_vec)*t ||^2
 # d(t)^2 = || A + B*t ||^2 = (B·B)t^2 + 2(A·B)t + (A·A)
-A = M1_start - cloud_pos_at_t0
-B = v_M1_vec - v_cloud_vec
+A = M1_start - cloud_pos_at_t0  # 初始位置差向量
+B = v_M1_vec - v_cloud_vec      # 相对速度向量
 
 # 二次方程 at^2 + bt + c <= 0 的系数
 # (B·B)t^2 + 2(A·B)t + (A·A) - cloud_radius^2 <= 0
-a = np.dot(B, B)
-b = 2 * np.dot(A, B)
-c = np.dot(A, A) - cloud_radius**2
+a = np.dot(B, B)                # 系数a = |B|²（相对速度的模长平方）
+b = 2 * np.dot(A, B)           # 系数b = 2(A·B)（位置差与相对速度的数量积）
+c = np.dot(A, A) - cloud_radius**2  # 系数c = |A|² - R²（初始距离平方减去半径平方）
 
-# 求解 t
+# 求解二次方程的判别式
+# Δ = b² - 4ac，判断解的存在性
 delta = b**2 - 4*a*c
 
 shield_duration = 0
 if delta >= 0:
+    """
+    时间窗口匹配数学过程：
+    
+    步骤1：求解二次不等式的根
+    at² + bt + c ≤ 0 的解为：
+    t₁ = (-b - √Δ) / (2a)  （进入遮蔽区域的时间）
+    t₂ = (-b + √Δ) / (2a)  （离开遮蔽区域的时间）
+    
+    步骤2：确定约束条件
+    - 距离约束：t ∈ [t₁, t₂]  （导弹在遮蔽半径内）
+    - 时间约束：t ∈ [t_burst, t_burst + T]  （烟幕有效期）
+    
+    步骤3：求交集
+    有效遮蔽时间区间 = [max(t₁, t_burst), min(t₂, t_burst + T)]
+    有效遮蔽时长 = max(0, 交集右端点 - 交集左端点)
+    """
     # 遮蔽条件满足的时间区间 [t1, t2]
-    t1 = (-b - np.sqrt(delta)) / (2*a)
-    t2 = (-b + np.sqrt(delta)) / (2*a)
+    # 使用二次方程求根公式：t = (-b ± √Δ) / (2a)
+    t1 = (-b - np.sqrt(delta)) / (2*a)  # 导弹进入遮蔽区域的时间
+    t2 = (-b + np.sqrt(delta)) / (2*a)  # 导弹离开遮蔽区域的时间
 
     # 烟幕有效的时间区间 [t_smoke_start, t_smoke_end]
-    t_smoke_start = t_burst_abs
-    t_smoke_end = t_burst_abs + cloud_duration
+    t_smoke_start = t_burst_abs          # 烟幕起爆时间
+    t_smoke_end = t_burst_abs + cloud_duration  # 烟幕失效时间
 
-    # 计算两个区间的交集
-    intersect_start = max(t1, t_smoke_start)
-    intersect_end = min(t2, t_smoke_end)
+    # 计算两个区间的交集 - 集合运算
+    # 交集 = [max(左端点), min(右端点)]
+    intersect_start = max(t1, t_smoke_start)    # 有效遮蔽开始时间
+    intersect_end = min(t2, t_smoke_end)        # 有效遮蔽结束时间
 
     # 如果交集存在，计算时长
     if intersect_end > intersect_start:
@@ -347,12 +572,26 @@ ax2.legend()
 ax2.grid(True, alpha=0.3)
 
 # 3. 参数敏感性分析 - 烟幕半径
+"""
+半径敏感性分析数学原理：
+对于二次不等式 at² + bt + c ≤ 0，其中 c = |A|² - R²
+当改变半径 R 时，只有常数项 c 发生变化。
+
+遮蔽时间关于半径的敏感性：
+∂T_shield/∂R = ∂(t₂ - t₁)/∂R = R/(|B|² × √Δ)
+
+其中：
+- 当 R 增大时，c 减小，Δ 增大，t₂ - t₁ 增大
+- 敏感性与半径 R 成正比，与相对速度平方 |B|² 成反比
+"""
 ax3 = fig.add_subplot(2, 3, 3)
 radius_range = np.arange(5, 51, 2)
 shield_times = []
 
 for r in radius_range:
+    # 重新计算常数项：c = |A|² - R²
     c_temp = np.dot(A, A) - r**2
+    # 重新计算判别式：Δ = b² - 4ac
     delta_temp = b**2 - 4*a*c_temp
     if delta_temp >= 0:
         t1_temp = (-b - np.sqrt(delta_temp)) / (2*a)
@@ -503,3 +742,67 @@ plt.show()
 print("✓ 可视化图表已生成:")
 print("  - analysis_charts.png: 综合分析图表")
 print("  - 3d_visualization.png: 三维可视化图")
+
+def print_mathematical_formulas():
+    """
+    输出详细的数学公式推导过程
+    可以通过调用此函数来查看完整的数学推导
+    """
+    print("\n" + "="*80)
+    print("                    数学公式推导详细过程")
+    print("="*80)
+    
+    print("\n1. 基本物理模型")
+    print("-" * 40)
+    print("导弹轨迹方程：P_M(t) = P_M0 + v_M × t")
+    print("烟幕轨迹方程：P_cloud(t) = P_cloud0 + v_cloud × t")
+    print("距离函数：d(t) = ||P_M(t) - P_cloud(t)||")
+    print("遮蔽条件：d(t) ≤ R")
+    
+    print("\n2. 解析解推导")
+    print("-" * 40)
+    print("步骤1：设置向量")
+    print("  A = P_M0 - P_cloud0  (初始位置差)")
+    print("  B = v_M - v_cloud    (相对速度)")
+    
+    print("\n步骤2：距离平方展开")
+    print("  d²(t) = ||A + B×t||²")
+    print("       = (A + B×t)·(A + B×t)")
+    print("       = A·A + 2(A·B)t + (B·B)t²")
+    
+    print("\n步骤3：建立二次不等式")
+    print("  遮蔽条件：d²(t) ≤ R²")
+    print("  即：(B·B)t² + 2(A·B)t + (A·A - R²) ≤ 0")
+    print("  标准形式：at² + bt + c ≤ 0")
+    print(f"  其中：a = {a:.6f} (B·B)")
+    print(f"        b = {b:.6f} (2×A·B)")
+    print(f"        c = {c:.6f} (A·A - R²)")
+    
+    print("\n步骤4：求解")
+    print(f"  判别式：Δ = b² - 4ac = {delta:.6f}")
+    if delta >= 0:
+        print(f"  解：t₁ = {t1:.4f} s, t₂ = {t2:.4f} s")
+        print(f"  理论遮蔽时长：{t2 - t1:.4f} s")
+    else:
+        print("  Δ < 0，无实数解，无法实现遮蔽")
+    
+    print("\n3. 时间窗口匹配")
+    print("-" * 40)
+    print(f"距离约束区间：[{t1:.4f}, {t2:.4f}] s")
+    print(f"烟幕有效区间：[{t_smoke_start:.4f}, {t_smoke_end:.4f}] s")
+    print(f"有效交集区间：[{intersect_start:.4f}, {intersect_end:.4f}] s")
+    print(f"最终遮蔽时长：{shield_duration:.4f} s")
+    
+    print("\n4. 参数敏感性")
+    print("-" * 40)
+    print("半径敏感性：∂T/∂R = R/(|B|² × √Δ)")
+    print("当前敏感性：∂T/∂R ≈", cloud_radius/(a * np.sqrt(delta)) if delta > 0 else "无限大")
+    print("说明：增加1m半径约可增加", cloud_radius/(a * np.sqrt(delta)) if delta > 0 else "∞", "秒遮蔽时间")
+    
+    print("\n" + "="*80)
+
+# 可选功能：显示详细的数学公式推导（设置为True来查看）
+SHOW_MATHEMATICAL_DERIVATION = False
+
+if SHOW_MATHEMATICAL_DERIVATION:
+    print_mathematical_formulas()
